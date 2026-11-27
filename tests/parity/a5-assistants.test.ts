@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import {
   ASSISTANT_CHANNELS, NAME_MAX, NOTE_MAX, assistantFor, validateAssistant, type Assistant,
 } from '../../src/core/owner/assistants.js';
-import { assistantFlash, channelsFromForm, renderAssistantsSection } from '../../src/api/web/assistants.js';
+import { assistantFlash, channelsFromForm, renderNameIdentity } from '../../src/api/web/assistants.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { renderPeople } from '../../src/api/web/people.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
@@ -64,26 +65,39 @@ describe('A5 · who answers a conversation', () => {
   });
 });
 
-describe('A5 · the section on the team page', () => {
+// Rule 104 — the section is on Settings › Assistant › Name and identity now: the main assistant's fields in the
+// page's one form, another's in the same form through its row's Edit (`?edit=<id>`), each Remove on its own row.
+const namePage = (locale: (typeof LOCALES)[number], edit: string | null = null) =>
+  renderNameIdentity({ named: true, pending: lily.name }, [lily, noor], locale, null, OWNER_VIEW, edit);
+describe('A5 · the section on the Name and identity page', () => {
   for (const locale of LOCALES) {
     it(`${locale}: the main one cannot be removed or given channels; the other can`, () => {
-      const html = renderAssistantsSection([lily, noor], locale);
+      const html = namePage(locale);
       expect(html).not.toContain(`/assistants/${lily.id}/archive`);
       expect(html).toContain(`/assistants/${noor.id}/archive`);
-      const lilyForm = html.slice(html.indexOf(`action="/app/settings/people/assistants/${lily.id}"`),
-        html.indexOf(`action="/app/settings/people/assistants/${noor.id}"`));
-      expect(lilyForm).not.toContain('type="checkbox"');
+      const formOf = (page: string, id: string) => {
+        const at = page.indexOf(`action="/app/settings/people/assistants/${id}"`);
+        expect(at, id).toBeGreaterThan(-1);
+        return page.slice(at, page.indexOf('</form>', at));
+      };
+      expect(formOf(html, lily.id)).not.toContain('type="checkbox"');
       for (const c of ASSISTANT_CHANNELS) expect(html).toContain(`name="channel_${c}"`);
       expect(html).not.toMatch(/\{(who|channels|name)\}/);
-      // Noor's own channels arrive ticked.
-      expect(html).toMatch(/name="channel_instagram" checked/);
+      // Noor's row leads to Noor's fields, in the same form; her own channels arrive ticked.
+      expect(html).toContain(`href="/app/settings/assistant/name?edit=${noor.id}#identity"`);
+      const noors = namePage(locale, noor.id);
+      expect(formOf(noors, noor.id)).toMatch(/name="channel_instagram" checked/);
+      expect(noors).not.toContain(`action="/app/settings/people/assistants/${lily.id}"`);
+      expect(noors).not.toMatch(/\{(who|channels|name)\}/);
     });
   }
 
-  it('is part of the team page only when the caller loaded it', () => {
+  it('is on the Name and identity page, and no longer on the team page', () => {
     const base = { people: [], justIssued: null };
     expect(renderPeople(base, 'en', null)).not.toContain('id="assistants"');
-    expect(renderPeople({ ...base, assistants: [lily] }, 'en', null)).toContain('id="assistants"');
+    expect(renderPeople({ ...base, assistants: [lily] }, 'en', null)).not.toContain('id="assistants"');
+    expect(namePage('en')).toContain('id="assistants"');
+    expect(read('src/api/web/settingsNavigation.ts')).toContain("'/app/settings/assistant/name'");
   });
 
   it('says what happened in her words, and never a code name', () => {

@@ -409,7 +409,9 @@ describe('the page · a fact, a fixed sentence, advice under its label, and the 
       // its one door, and the redesign's small link at the top: a new conversation
       expect(said.match(/<a class="deeper"/g)).toHaveLength(1);
       expect(said).toContain(`<a class="deeper" href="/app/inbox">${esc(t(l, 'nav.inbox'))}`);
-      expect(said.match(/<a\s/g)).toHaveLength(3);
+      // Rule 104 — and the way to this person's own history, which left the Settings menu for this page.
+      expect(said.match(/<a\s/g)).toHaveLength(4);
+      expect(said).toContain(`<a href="/app/settings/personal/advisor-history">${esc(t(l, 'advisor.history.title'))}</a>`);
       expect(said).toContain(`<a href="/app/assistant/ask?new=1">${esc(t(l, 'advisor.thread.new'))}</a>`);
       // talking, the box asks plainly; the typed questions are the empty page's alone
       // once there is an answer, the box asks for a follow-up — never "Your question"

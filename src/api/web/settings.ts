@@ -28,7 +28,8 @@ import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 import { switcher, deeper, back, esc, conversationUrl, ASSISTANT_HOME } from './layout.js';
 import { agentMark } from './agentMark.js';
 import { fieldRow, rowsCard, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
-import { factList, editFold, editActs, editSection } from './editFold.js';
+import { pageHead, setSection, setRow, setNotice, saveForm, saveActs, rowAction, searchList, listRow } from './settingsPage.js';
+import { businessKindRows, type BusinessKindView } from './businessKind.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { validateIdentifiers, keepsMoroccanBooks, ICE_POSITIONS, type Identifiers, type IdentifiersInput, type IdentifierField, type IdentifierError } from '../../core/books/identifiers.js';
@@ -216,10 +217,10 @@ export async function saveIdentifiers(
 }
 
 /**
- * E2 — the identifiers' card: its own form and save, the owner's (`business_identifiers`); anyone else sees the
- * values and that the owner decides. What was typed stays in the form when a field is refused.
+ * E2 — the identifiers, as a section of the profile's one form (rule 104): the owner's (`business_identifiers`);
+ * anyone else sees the values and that the owner decides. What was typed stays in the form when a field is refused.
  */
-function identifiersCard(
+function identifiersSection(
   ids: Identifiers, locale: Locale, viewer: Viewer,
   draft: IdentifiersInput | null, errors: Partial<Record<IdentifierField, IdentifierError>>,
 ): string {
@@ -231,26 +232,19 @@ function identifiersCard(
   ];
   const stored = (f: IdentifierField) => ids[f] ?? '';
   if (!viewer.isOwner) {
-    return rowsCard(t(locale, 'settings.ids.title'), [
+    return setSection({ id: 'identifiers', title: t(locale, 'settings.ids.title'), rows: [
       ...rows.map(([f, , label]) => fieldRow({ label: t(locale, label),
         control: `<span class="fr-value">${stored(f) ? `<bdi dir="ltr">${esc(stored(f))}</bdi>` : `<span class="muted">${esc(t(locale, 'settings.ids.none'))}</span>`}</span>` })),
-    ], 'identifiers') + ownerDecides(locale);
+      ownerDecides(locale)] });
   }
   const err = (f: IdentifierField) => {
     const e = errors[f];
     return e ? `<span class="fielderr" role="alert" id="ids-${f}-err">${esc(t(locale, `settings.ids.err.${e}` as MessageKey, { n: ICE_POSITIONS }))}</span>` : undefined;
   };
-  // UI Block 9 (F10) — the identifiers read first; their form opens on purpose, and again after a refused save.
-  const form = `<form method="post" action="/app/settings/identifiers" class="sform biz-form"><div class="scard">${[
-      ...rows.map(([f, name, label, why]) => fieldRow({ label: t(locale, label), forId: `ids-${name}`, error: err(f),
-        ...(why ? { desc: t(locale, why) } : {}),
-        control: `<input id="ids-${name}" name="${name}" dir="ltr" value="${esc(draft ? draft[f] : stored(f))}"${errors[f] ? ` aria-invalid="true" aria-describedby="ids-${f}-err"` : ''} />` })),
-      `<p class="caption muted">${esc(t(locale, 'settings.ids.sources'))}</p>`,
-      editActs(locale, t(locale, 'settings.ids.save')),
-    ].join('')}</div></form>`;
-  return editSection({ id: 'identifiers', title: t(locale, 'settings.ids.title'),
-    facts: factList(locale, rows.map(([f, , label]) => [t(locale, label), stored(f) ? `<bdi dir="ltr">${esc(stored(f))}</bdi>` : ''] as const)),
-    fold: editFold(t(locale, 'edit.change.ids'), Object.keys(errors).length > 0, form) });
+  return setSection({ id: 'identifiers', title: t(locale, 'settings.ids.title'), help: t(locale, 'settings.ids.sources'),
+    rows: rows.map(([f, name, label, why]) => fieldRow({ label: t(locale, label), forId: `ids-${name}`, error: err(f),
+      ...(why ? { desc: t(locale, why) } : {}),
+      control: `<input id="ids-${name}" name="${name}" dir="ltr" value="${esc(draft ? draft[f] : stored(f))}"${errors[f] ? ` aria-invalid="true" aria-describedby="ids-${f}-err"` : ''} />` })) });
 }
 
 const langsSql = (langs: readonly string[]) =>
@@ -459,25 +453,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
     ${menuGroup('account', t(locale, 'setup.group.yours'), account)}`;
 }
 
-/**
- * Phase 7 — the language switch, on a small screen of its own: Setup's row says which language is in force.
- * Phase 9 (w4-today-setup-29) — five rows like every menu's, each in its own language and at a row's size;
- * the one in force says so in words and to a screen reader (`aria-current`), not by a class alone.
- */
-export function renderLanguage(locale: Locale, accountant = false): string {
-  const rows = LOCALES.map((l) => {
-    const on = l === locale;
-    return `<li><a class="srow sr-menu" href="/locale?set=${l}&next=/app/settings/language" hreflang="${l}"${on ? ' aria-current="true"' : ''}>`
-      // The name keeps the page's side; its own letters' order is isolated (a `dir` on the cell would move it to the other side).
-      + `<span class="sr-main"><span class="sr-label" lang="${l}"><bdi>${esc(LOCALE_LABEL[l])}</bdi></span></span>`
-      + `${on ? `<span class="sr-value ok"><bdi>${esc(t(locale, 'settings.language.inUse'))}</bdi></span>` : ''}`
-      + `${GO}</a></li>`;
-  }).join('');
-  // B18 — an accountant reached this from their sign-in page (they have no Setup).
-  return `${accountant ? back('/app/settings/account', t(locale, 'account.title')) : back('/app/settings/setup', t(locale, 'nav.setup'))}
-    <h1 class="page">${esc(t(locale, 'settings.language.title'))}</h1>
-    <ul class="scard" aria-label="${esc(t(locale, 'switcher.aria'))}">${rows}</ul>`;
-}
+// The language switch is Settings › You › Account's `#language` section (rule 104): one select, saved with the page.
 
 /**
  * THE WARMTH RUN (2026-10-03), phase 1 — SETTINGS: the screen the rail's
@@ -623,14 +599,29 @@ function currencyRow(c: CurrencyChoice, locale: Locale, viewer: Viewer): string 
     control: `<select id="pf-currency" name="currency">${CURRENCY_CHOICES.map((x) => `<option value="${x}"${x === c.currency ? ' selected' : ''}>${esc(currencyLabel(locale, x))}</option>`).join('')}</select>` });
 }
 
+/** Where the business profile is drawn, and where its one Save is sent (rule 104). */
+export const PROFILE_PAGE = '/app/settings/business/profile';
+
+/**
+ * THE SETTINGS OVERHAUL (rule 104) — Business profile in the one template: every field always on the page, in four
+ * sections (the business, contact, legal identifiers, type and website), and ONE Save for all of them
+ * (`POST PROFILE_PAGE`: it validates everything, then calls the save functions that were always there). A refused
+ * save comes back with everything typed kept and each refusal under its field (M20.4).
+ *
+ * What left for its ONE home: working hours and the time zone are on Hours and closures, the currency on Currency;
+ * the page says where each is. "What you sell" is answered in How you sell and stays a value with its door.
+ * `_zone` and `_currency` are no longer drawn here (kept in the signature for the callers that pass them).
+ */
 export function renderProfile(
   p: BusinessProfile, locale: Locale, flash: Flash | null,
   draft: ProfileDraft = {}, errors: ProfileErrors = {},
-  zone: ZoneChoice | null = null,
-  currency: CurrencyChoice | null = null,
+  _zone: ZoneChoice | null = null,
+  _currency: CurrencyChoice | null = null,
   viewer: Viewer = OWNER_VIEW,
   ids: { readonly draft?: IdentifiersInput; readonly errors?: Partial<Record<IdentifierField, IdentifierError>> } = {},
+  kind: { readonly view: BusinessKindView; readonly kept?: Kept | null } | null = null,
 ): string {
+  const name = assistantName(locale);
   // M20.4 (F-07) — the submitted value wins over the stored one, so nothing the
   // owner typed is lost when one field is wrong.
   const val = (f: ProfileField, stored: string | null): string => draft[f] ?? stored ?? '';
@@ -645,120 +636,56 @@ export function renderProfile(
   const needs = {
     description: !p.description, location: !p.location, contact: !p.contactEmail && !p.contactPhone,
   };
-  const need = (missing: boolean): string | undefined => (missing ? t(locale, 'settings.profile.need') : undefined);
-  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '', extra: { need?: string | undefined; desc?: string } = {}) => fieldRow({
-    label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined, need: extra.need, desc: extra.desc,
+  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '', extra: { needed?: boolean; mark?: string | undefined; desc?: string } = {}) => setRow(locale, {
+    label: t(locale, label), forId: `pf-${id}`, error: errLine(f) || undefined, desc: extra.desc,
+    ...(extra.needed ? { needed: true } : {}), ...(extra.mark ? { mark: extra.mark } : {}),
     control: `<input id="pf-${id}" name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />` });
 
-  const languages = fieldRow({ label: t(locale, 'settings.field.languages'), desc: t(locale, 'settings.desc.languages'),
+  const languages = fieldRow({ label: t(locale, 'settings.field.languages'), desc: t(locale, 'ws.profile.languages'),
     control: `<div class="langs">${SERVED_LANGUAGES.map((l) =>
       `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> <bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi></label>`).join('')}</div>` });
   // Phase 9 (V1-524) — who reads what: the description reaches the assistant
   // (speakerContext's "what it sells"); the contact details reach nobody.
-  const description = fieldRow({ label: t(locale, 'settings.field.description'), forId: 'pf-description', error: errLine('description') || undefined,
-    need: need(needs.description), desc: t(locale, 'settings.desc.description'),
+  const description = setRow(locale, { label: t(locale, 'settings.field.description'), forId: 'pf-description', error: errLine('description') || undefined,
+    needed: needs.description, desc: t(locale, 'settings.desc.description', { name }),
     control: `<textarea id="pf-description" name="description" rows="3">${esc(val('description', p.description))}</textarea>` });
   // The warmth run (V1-006, V1-525, -07) — what the business sells, in the owner's words for it, and the door to the one
-  // place it is answered: since UI Block 9 (F10) a value of the part's summary (sellsValue below), not a row of its form.
-
-  // Phase 3 — ONE form, ONE save: the profile, the zone and the currency
-  // were three forms with a Save each; the route saves all three.
-  // ONE_CARD_ACT (the warmth run, phase 9) — where a form's act goes on these
-  // pages: inside the card's foot when the form is one card (Samples, Terms,
-  // the rate, every add form); in a bar after the cards when one Save saves
-  // several cards, as here — inside the last card it would read as that
-  // card's own.
-  // UI Block 7 (F35) — each subject is its own form with its own Save, which says what it saves. The route still saves
-  // the whole profile (unchanged), so a subject's form carries the OTHER subjects' fields, hidden, as the page shows
-  // them: the stored values, or after a refused save the submission (M20.4: the submission wins, and a refused save
-  // came from one subject, so the others' part of it is what was stored). The address, the zone and the currency ride
-  // only with their own subject (the route leaves each untouched when the form does not carry it).
-  const hid = (name: string, value: string): string => `<input type="hidden" name="${name}" value="${esc(value)}" />`;
-  const keepBusiness = hid('name', val('name', p.name)) + hid('description', val('description', p.description))
-    + hid('location', val('location', p.location)) + hid('working_hours', val('workingHours', p.workingHours))
-    + (draft.languagesServed ?? p.languagesServed).map((l) => hid(`lang_${l}`, 'on')).join('');
-  const keepContact = hid('contact_email', val('contactEmail', p.contactEmail)) + hid('contact_phone', val('contactPhone', p.contactPhone));
-  // One primary act per page (the surface walk's rule): the business details' Save is the filled one; the contact and
-  // the time zone Saves are outlined secondaries, each still its own form and its own named Save.
-  // UI Block 9 (F10) — each part's acts: its own Save, and a Cancel beside it (editFold.ts).
-  const act = (key: MessageKey, primary = false): string => editActs(locale, t(locale, key), primary);
-  const zoneSaves = zone !== null;
-  const currencySaves = currency !== null && !currency.fixed && viewer.isOwner;
-  const zoneAct: MessageKey = zoneSaves && currencySaves ? 'biz.save.zone' : zoneSaves ? 'biz.save.zoneOnly' : 'biz.save.currencyOnly';
-  // UI Block 9 (F10) — each part reads first: its values in a short list (stored values: a refused save's words stay in
-  // its form, which opens), and its form behind its own "Change …" fold — open at rest only while the part still needs
-  // something for setting up, or after a refused save of it. "What you sell" is answered elsewhere: it stays a value.
-  const card = (rows: readonly string[]): string => `<div class="scard">${rows.join('')}</div>`;
-  const refused = (fs: readonly ProfileField[]): boolean => fs.some((f) => !!errors[f]);
-  const text = (v: string | null | undefined, long = false): string =>
-    v && v.trim() ? (long ? `<span class="ef-long"><bdi>${esc(v)}</bdi></span>` : `<bdi>${esc(v)}</bdi>`) : '';
-  const sellsValue = p.whatYouSell ? `<span class="fr-value">${p.whatYouSell.category
+  // place it is answered (How you sell): a value here, never a field.
+  const sells = p.whatYouSell ? [fieldRow({ label: t(locale, 'settings.field.whatYouSell'),
+    control: `<span class="fr-value">${p.whatYouSell.category
       ? esc(t(locale, `hs.category.${p.whatYouSell.category}` as MessageKey))
-      : `<span class="muted">${esc(t(locale, 'setup.state.notAnswered'))}</span>`}</span> ${deeper(WHAT_YOU_SELL, t(locale, 'hs.q.product_claims'))}` : '';
-  const aboutFacts = factList(locale, [
-    [t(locale, 'settings.field.name'), text(p.name)],
-    [t(locale, 'settings.field.description'), text(p.description, true)],
-    ...(p.whatYouSell ? [[t(locale, 'settings.field.whatYouSell'), sellsValue] as const] : []),
-    [t(locale, 'settings.field.location'), text(p.location)],
-    [t(locale, 'settings.field.workingHours'), text(p.workingHours)],
-    [t(locale, 'settings.field.languages'), SERVED_LANGUAGES.filter((l) => p.languagesServed.includes(l)).map((l) => `<bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi>`).join(LIST_GAP[locale])],
-  ]);
-  const contactFacts = factList(locale, [
-    [t(locale, 'settings.field.contactEmail'), p.contactEmail ? `<bdi dir="ltr">${esc(p.contactEmail)}</bdi>` : ''],
-    [t(locale, 'settings.field.contactPhone'), p.contactPhone ? `<bdi dir="ltr">${esc(p.contactPhone)}</bdi>` : ''],
-    [t(locale, 'settings.field.postalAddress'), text(p.postalAddress, true)],
-  ]);
-  const zoneFacts = factList(locale, [
-    ...(zone ? [[t(locale, 'settings.zone.label'), `<bdi>${esc(zoneLabel(locale, zone.zone))}</bdi>`] as const] : []),
-    ...(currency ? [[t(locale, 'settings.currency.label'), `<bdi>${esc(currencyLabel(locale, currency.currency))}</bdi>`] as const] : []),
-  ]);
-  const zoneChange: MessageKey = zoneSaves && currencySaves ? 'edit.change.zoneCurrency' : zoneSaves ? 'edit.change.zone' : 'edit.change.currency';
-  const form = `${editSection({ id: 'about', title: t(locale, 'profile.group.business'), facts: aboutFacts,
-    fold: editFold(t(locale, 'edit.change.business'), needs.description || needs.location || refused(['name', 'description', 'location', 'workingHours']),
-    `<form method="post" action="/app/settings" class="sform biz-form">
-    ${card([
-      field('name', 'settings.field.name', 'name', p.name), description,
-      field('location', 'settings.field.location', 'location', p.location, '', { need: need(needs.location) }),
-      field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph')),
-      languages, act('biz.save.business', true),
-    ])}${keepContact}
-  </form>`) })}
-  ${editSection({ id: 'contact', title: t(locale, 'profile.group.contact'), facts: contactFacts,
-    fold: editFold(t(locale, 'edit.change.contact'), needs.contact || refused(['contactEmail', 'contactPhone', 'postalAddress'])
-      || (!!p.outreachArea && !(p.postalAddress ?? '').trim()),
-    `<form method="post" action="/app/settings" class="sform biz-form">
-    ${card([
-      // The warmth run (w4-settings-b-outreach-06) — either one finishes the
-      // step (setup.ts), and each field says so: marking both "needed" read
-      // as asking for both.
-      field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail, '', { need: needs.contact ? t(locale, 'settings.profile.needOrPhone') : undefined, desc: t(locale, 'settings.desc.contact') }),
-      field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'), { need: needs.contact ? t(locale, 'settings.profile.needOrEmail') : undefined }),
-      // 0133 — the address every first e-mail and follow-up carries. The business is the sender and owns the duty;
-      // the words say so. Marked as needed where the business writes first, since none goes without it.
-      fieldRow({ label: t(locale, 'settings.field.postalAddress'), forId: 'pf-postal', error: errLine('postalAddress') || undefined,
-        need: p.outreachArea && !(draft.postalAddress ?? p.postalAddress ?? '').trim() ? t(locale, 'settings.need.postalAddress') : undefined,
-        desc: t(locale, 'settings.desc.postalAddress'),
-        control: `<textarea id="pf-postal" name="postal_address" rows="3" maxlength="400" dir="auto">${esc(val('postalAddress', p.postalAddress ?? null))}</textarea>` }),
-      act('biz.save.contact'),
-    ])}${keepBusiness}
-  </form>`) })}
-  ${!(zone || currency) ? '' : zoneSaves || currencySaves ? editSection({ id: 'zone', title: t(locale, 'profile.group.zone'), facts: zoneFacts,
-    fold: editFold(t(locale, zoneChange), false, `<form method="post" action="/app/settings" class="sform biz-form">
-    ${card([
-      ...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : []),
-      act(zoneAct),
-    ])}${keepBusiness}${keepContact}
-  </form>`) }) : rowsCard(t(locale, 'profile.group.zone'), [...(zone ? [zoneRow(zone, locale)] : []), ...(currency ? [currencyRow(currency, locale, viewer)] : [])], 'zone')}`;
+      : `<span class="muted">${esc(t(locale, 'setup.state.notAnswered'))}</span>`}</span> ${deeper(WHAT_YOU_SELL, t(locale, 'hs.q.product_claims'))}` })] : [];
+  // 0133 — the address every first e-mail and follow-up carries: ONE line on the page (the long form is in the page's
+  // help). Marked as needed where the business writes first, since none goes without it.
+  const postalNeeded = !!p.outreachArea && !(draft.postalAddress ?? p.postalAddress ?? '').trim();
+  const postal = setRow(locale, { label: t(locale, 'settings.field.postalAddress'), forId: 'pf-postal', error: errLine('postalAddress') || undefined,
+    needed: postalNeeded, desc: t(locale, 'ws.profile.postal'),
+    control: `<textarea id="pf-postal" name="postal_address" rows="3" maxlength="400" dir="auto">${esc(val('postalAddress', p.postalAddress ?? null))}</textarea>` });
+
+  const about = setSection({ id: 'about', title: t(locale, 'profile.group.business'), rows: [
+    field('name', 'settings.field.name', 'name', p.name), description, ...sells,
+    field('location', 'settings.field.location', 'location', p.location, '', { needed: needs.location }),
+    languages,
+  ] });
+  // The warmth run (w4-settings-b-outreach-06) — either one finishes the step (setup.ts), and each field says so.
+  const contact = setSection({ id: 'contact', title: t(locale, 'profile.group.contact'), rows: [
+    field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail, '', { mark: needs.contact ? t(locale, 'ws.profile.orPhone') : undefined, desc: t(locale, 'settings.desc.contact', { name }) }),
+    field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'), { mark: needs.contact ? t(locale, 'ws.profile.orEmail') : undefined }),
+    postal,
+  ] });
+  const identifiers = p.identifiers ? identifiersSection(p.identifiers, locale, viewer, ids.draft ?? null, ids.errors ?? {}) : '';
+  const type = kind ? setSection({ id: 'business-kind', title: t(locale, 'ws.profile.typeWebsite'), rows: businessKindRows(kind.view, locale, kind.kept ?? null) }) : '';
+  // A setting has ONE home: the page says where the three that left are set, by the page's own name.
+  const elsewhere = setNotice({ text: t(locale, 'ws.profile.hoursAt', { page: t(locale, 'settingsArea.hours') }), door: { href: '/app/settings/business/hours', label: t(locale, 'settingsArea.hours') } })
+    + setNotice({ text: t(locale, 'ws.profile.currencyAt', { page: t(locale, 'settingsArea.currency') }), door: { href: '/app/settings/business/currency', label: t(locale, 'settingsArea.currency') } });
 
   const missing = needs.description || needs.location || needs.contact;
-  // Phase 7 — the business's facts have ONE home, My business (two doors, one
-  // data: the assistant's page links here for what it can talk about).
-  return `${back('/app/business', t(locale, 'nav.factory'))}
-    <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
+  // Where the two that left are set is said BEFORE the form: the page's one Save is its last control.
+  return `${pageHead(t(locale, 'settingsArea.profile'), t(locale, 'ws.profile.lede', { name }))}
     ${flashBanner(flash)}
-    ${missing ? `<p class="muted">${esc(t(locale, 'settings.profile.needs'))}</p>` : ''}
-    ${form}
-    ${p.identifiers ? identifiersCard(p.identifiers, locale, viewer, ids.draft ?? null, ids.errors ?? {}) : ''}`;
+    ${missing ? setNotice({ id: 'profile-needs', text: t(locale, 'settings.profile.needs') }) : ''}
+    ${elsewhere}
+    ${saveForm(PROFILE_PAGE, `${about}${contact}${identifiers}${type}${saveActs(locale)}`, { id: 'profile-form' })}`;
 }
 
 
@@ -871,39 +798,35 @@ const languageOf = (locale: Locale, code: string): string => {
 };
 const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
 
-export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
+/**
+ * The settings overhaul (rule 104) — WORDS TO AVOID, a section of Settings › Assistant › Promises and words (it was a
+ * page of its own). The rule is on the page in one line; a word is ADDED with the list's own Add form and REMOVED by
+ * its row, at once (the notice that follows offers Undo); the built-in list is read-only, folded. How a word is
+ * matched is said under the field it concerns (V1-504: on the page itself).
+ */
+export function forbiddenSection(v: ForbiddenView, locale: Locale, kept: Kept | null = null): string {
   const name = assistantName(locale);
-  // Phase 9 (V1-506) — the way back to the page it is reached from: the assistant's.
-  return `${back(ASSISTANT_HOME, t(locale, 'nav.employee'))}
-    <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
-    ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
-    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<details class="floor-fold how-fold"><summary>${esc(t(locale, 'forbidden.howMatched.title'))}</summary><p class="muted small measure-prose">${esc(t(locale, 'forbidden.howMatched'))}</p></details>
-    <form method="post" action="/app/settings/forbidden">
-      ${rowsCard(null, [
-        fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
-          control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" value="${keptValue(kept, 'term')}"${keptInvalid(kept, 'term', 'fb-term-err')} />` }),
-        fieldRow({ label: t(locale, 'forbidden.add.note'), forId: 'fb-note',
-          control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" value="${keptValue(kept, 'note')}" />` }),
-        cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>`),
-      ])}
-    </form>
-    ${v.own.length === 0
-      ? `<div class="empty whole">${esc(t(locale, 'forbidden.empty'))}</div>`
-      : rowsCard(null, v.own.map((x) => fieldRow({ label: x.term,
-          control: `${x.note ? `<span class="fr-value muted"><bdi>${esc(x.note)}</bdi></span>` : ''}<form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
-              <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
-            </form>` })))}
-    ${/* Phase 3 — the floor is a fact, not the page: folded, the words inside for whoever opens it.
-        Phase 9 (settings-a-new-18) — what it is and what the number counts are on the fold, and why it is there is said outside it. */ ''}<div class="block floor">
-      <h2>${esc(t(locale, 'forbidden.floor.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
+  const add = `<form method="post" action="/app/settings/forbidden" class="set-add">
+      ${fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', desc: t(locale, 'forbidden.howMatched'), error: keptError(kept, 'term', 'fb-term-err'),
+        control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" value="${keptValue(kept, 'term')}"${keptInvalid(kept, 'term', 'fb-term-err')} />` })}
+      ${fieldRow({ label: t(locale, 'forbidden.add.note'), forId: 'fb-note',
+        control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" value="${keptValue(kept, 'note')}" />` })}
+      ${cardActs(`<button class="btn" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>`)}
+    </form>`;
+  const own = v.own.length === 0
+    ? `<p class="set-none muted">${esc(t(locale, 'forbidden.empty'))}</p>`
+    : searchList(locale, `<table class="team-table as-words"><thead><tr><th scope="col">${esc(t(locale, 'forbidden.add.label'))}</th><th scope="col">${esc(t(locale, 'as.words.note'))}</th><th scope="col"></th></tr></thead><tbody>${v.own.map((x) =>
+        `<tr class="tm"${listRow(`${x.term} ${x.note ?? ''}`)}><th scope="row"><bdi>${esc(x.term)}</bdi></th><td>${x.note ? `<bdi>${esc(x.note)}</bdi>` : ''}</td><td class="as-act">${rowAction({
+          action: `/app/settings/forbidden/${x.id}/remove`, label: t(locale, 'forbidden.remove'), ariaLabel: `${t(locale, 'forbidden.remove')}: ${x.term}` })}</td></tr>`).join('')}</tbody></table>`);
+  // The floor is a fact, not a setting: what it is and that it cannot be switched off are said; the words are folded.
+  const floor = `<h3 class="sgroup-h">${esc(t(locale, 'forbidden.floor.title'))}</h3>
+      <p class="set-help">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
       <details class="floor-fold">
         <summary>${esc(tn(locale, 'forbidden.floor.count', v.floor.length))}</summary>
         <dl class="floor-langs">${FLOOR_BY_LANGUAGE.map((g) => `<div><dt>${esc(languageOf(locale, g.language))}</dt><dd>${
           g.words.filter((w) => v.floor.includes(w)).map((w) => `<bdi>${esc(w)}</bdi>`).join(esc(LIST_GAP[locale]))}</dd></div>`).join('')}</dl>
-      </details>
-    </div>`;
+      </details>`;
+  return setSection({ id: 'words', title: t(locale, 'settingsArea.words'), help: t(locale, 'forbidden.intro', { name }), rows: `${add}${own}${floor}` });
 }
 
 /* ── M43b · the rate she will honour ─────────────────────────────────────── */
@@ -993,43 +916,39 @@ export async function setRate(
   });
 }
 
-export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null, embedded = false): string {
+/** Where Currency is drawn, and where its one Save is sent (rule 104). */
+export const CURRENCY_PAGE = '/app/settings/business/currency';
+
+/**
+ * THE SETTINGS OVERHAUL (rule 104) — Currency: the ONE home of the currency the workspace sells in (a choice only for
+ * the owner, and only until the first price) and of the rate the owner will honour; one Save for both
+ * (`POST CURRENCY_PAGE`). "Never a rate from anywhere else" stays on the page, beside the rate. Anyone else reads
+ * the values and that the owner decides. `kept`: a refused rate, said under its field with what was typed.
+ */
+export function renderCurrency(v: RateView, c: CurrencyChoice | null, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
-  // Phase 9 (V1-529, V1-530) — the page leads back where it is reached from:
-  // since phase 7, My business › How you sell.
-  const backTo = embedded ? '' : back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'));
-  if (!v.pair) {
-    // Phase 9 (V1-529, V1-531, V1-532, new-06) — nothing to convert is a state,
-    // drawn as one: the currency by its name, and the door to where it is set.
-    return `${backTo}
-    ${embedded ? `<h2>${esc(t(locale,'rate.title'))}</h2>` : `<h1 class="page">${esc(t(locale,'rate.title'))}</h1>`}
-    ${flashBanner(flash)}
-    <div class="empty notset" role="status">${esc(t(locale, 'rate.none', { from: currencyInLine(locale, v.currency) }))}
-      <div>${deeper('/app/settings/profile#zone', t(locale, 'settings.profile.title'))}</div></div>`;
-  }
-  const { from, to } = v.pair;
   const stated = (r: OwnerRate): string =>
     `${esc(t(locale, 'rate.current', { rate: r.rate, from: r.from, to: r.to }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: show.date(locale, r.statedAt) }))}</span>`;
-  return `${backTo}
-    ${embedded ? `<h2>${esc(t(locale,'rate.title'))}</h2>` : `<h1 class="page">${esc(t(locale,'rate.title'))}</h1>`}
+  const selling = c ? setSection({ id: 'currency', title: t(locale, 'biz.now.currency'), rows: [currencyRow(c, locale, viewer)] }) : '';
+  // Phase 9 (V1-529, V1-531, V1-532, new-06) — nothing to convert is a state, drawn as one: the currency by its name.
+  const rate = !v.pair
+    ? setSection({ id: 'rate', title: t(locale, 'rate.title'), rows: `<div class="empty notset" role="status">${esc(t(locale, 'rate.none', { from: currencyInLine(locale, v.currency) }))}</div>` })
+    : setSection({ id: 'rate', title: t(locale, 'rate.title'), rows: [
+      setNotice({ text: t(locale, 'rate.intro', { name, from: v.pair.from, to: v.pair.to }) }),
+      v.current ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
+        : `<div class="empty notset">${esc(t(locale, 'rate.empty', { to: v.pair.to }))}</div>`,
+      ...(viewer.isOwner ? [fieldRow({ label: t(locale, 'rate.add.label', { from: v.pair.from, to: v.pair.to }), forId: 'rt-rate', error: keptError(kept, 'rate', 'rt-rate-err'),
+        control: `<input id="rt-rate" name="rate" inputmode="decimal" value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` })] : []),
+    ] });
+  const fields = viewer.isOwner && ((c !== null && !c.fixed) || v.pair !== null);
+  const history = v.previous.length
+    ? setSection({ title: t(locale, 'rate.history.title'), rows: `<ul class="rate-hist">${v.previous.map((r) => `<li><bdi>${stated(r)}</bdi></li>`).join('')}</ul>` })
+    : '';
+  return `${pageHead(t(locale, 'settingsArea.currency'), t(locale, 'settingsArea.currencyHint'))}
     ${flashBanner(flash)}
-    <section class="block">
-      <p class="muted">${esc(t(locale, 'rate.intro', { name, from, to }))}</p>
-      ${v.current
-        ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
-        : `<div class="empty notset">${esc(t(locale, 'rate.empty', { to }))}</div>`}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="sform biz-form">
-        ${rowsCard(null, [fieldRow({ label: t(locale, 'rate.add.label', { from, to }), forId: 'rt-rate', error: keptError(kept, 'rate', 'rt-rate-err'),
-          control: `<input id="rt-rate" name="rate" inputmode="decimal" required value="${keptValue(kept, 'rate')}"${keptInvalid(kept, 'rate', 'rt-rate-err')} />` }),
-          // The warmth run — a form of one card ends with its act inside it, as every form on these pages (ONE_CARD_ACT).
-          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'rate.add.button'))}</button>`)])}
-      </form>` : ownerDecides(locale)}
-    </section>
-    ${v.previous.length
-      ? `<section class="block"><h2>${esc(t(locale, 'rate.history.title'))}</h2>
-         <ul class="rate-hist">${v.previous.map((r) => `<li><bdi>${stated(r)}</bdi></li>`).join('')}</ul>
-         </section>`
-      : ''}`;
+    ${fields ? saveForm(CURRENCY_PAGE, `${selling}${rate}${saveActs(locale)}`, { id: 'currency-form' })
+      : `${selling}${rate}${viewer.isOwner || !v.pair ? '' : ownerDecides(locale)}`}
+    ${history}`;
 }
 
 /* ── M44 · the days the factory is shut ──────────────────────────────────── */
@@ -1161,7 +1080,21 @@ function dateParts(locale: Locale, name: 'from' | 'to', label: string, kept: Kep
   return `<div class="dparts" role="group" aria-label="${esc(label)}">${parts}</div>`;
 }
 
-export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null, kept: Kept | null = null, embedded = false): string {
+/** Where Hours and closures is drawn, and where its one Save is sent (rule 104). */
+export const HOURS_PAGE = '/app/settings/business/hours';
+export type HoursView = { readonly workingHours: string | null; readonly zone: ZoneChoice | null; readonly closures: readonly ClosureRow[] };
+
+/**
+ * THE SETTINGS OVERHAUL (rule 104) — Hours and closures: the ONE home of the working hours and the time zone (fields,
+ * saved by the page's one Save: `POST HOURS_PAGE`) and of the days the business is closed (a list: each Remove acts
+ * at once and asks first; "Add these days" is the list's own Add, a section of its own). No date is promised through
+ * closed days: that line stays on the page, beside the list. The Save's form comes LAST, so Save ends the page; the
+ * Add form draws its rows as the Save's form does (`set-form`), so the two columns line up. `kept`: a closure refused, under its field; `hours`: working hours refused.
+ */
+export function renderHours(
+  v: HoursView, locale: Locale, flash: Flash | null, kept: Kept | null = null,
+  hours: { readonly typed: string; readonly error?: string | undefined } | null = null,
+): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
@@ -1169,38 +1102,40 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
   // them (`closureNote`): the closure's name, and that no date can be promised.
   // Phase 9 of the warmth run (w4-settings-a-13) — with no closure yet, the sample is said as it reads mid-sentence.
   const example = t(locale, 'closures.example', { name, label: v.closures[0]?.label ?? t(locale, 'closures.example.sample') });
-  // UI Block 7 (F35) — on Settings the recorded days come first (what is true now), then the form that adds more, as
-  // every subject on these pages; each Remove (undone from its notice, as before) names, to a screen reader, the closure
-  // it removes.
+  // A row's Remove acts at once (the one saving rule), asks first, and can still be undone from its notice.
   const closureList = v.closures.length === 0
     ? `<div class="empty whole">${esc(t(locale, 'closures.empty', { name }))}</div>`
     : `<ul class="closures">${v.closures.map((c) => `<li>
           <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
-          <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
-            <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}${embedded ? `<span class="sa-vh"> <bdi>${esc(c.label)}</bdi></span>` : ''}</button>
-          </form></li>`).join('')}</ul>`;
-  // Phase 9 (V1-478, settings-a-new-09) — the way back to where it is linked
-  // from (phase 7: How you sell); the intro is the settings pages' one lede.
-  return `${embedded ? '' : back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
-    ${embedded ? `<h2>${esc(t(locale,'closures.title'))}</h2>` : `<h1 class="page">${esc(t(locale,'closures.title'))}</h1>`}
+          ${rowAction({ action: `/app/settings/closures/${c.id}/remove`, label: t(locale, 'closures.remove'), danger: true,
+            confirm: t(locale, 'ws.hours.removeAsk', { label: c.label }), ariaLabel: `${t(locale, 'closures.remove')} ${c.label}` })}</li>`).join('')}</ul>`;
+  const closed = setSection({ id: 'closures', title: t(locale, 'closures.title'), rows: [
+    setNotice({ text: t(locale, 'ws.hours.closedNote', { name }) }),
+    // Read-only detail may fold (rule 104): what a customer is told, in the words the reply is given.
+    `<details class="note-fold closure-said"><summary>${esc(t(locale, 'closures.example.sum'))}</summary><p class="measure-prose">${esc(example)}</p></details>`,
+    `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.now'))}</h3>${closureList}`,
+  ] });
+  const add = `<form method="post" action="/app/settings/closures" class="set-form" id="add-closure">${setSection({ title: t(locale, 'biz.closures.add'), rows: [
+      fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
+        control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
+      // The warmth run, phase 9 (V1-008) — each date in the owner's language: day, month by name, year.
+      fieldRow({ label: t(locale, 'closures.add.from'), error: keptError(kept, 'from', 'cl-from-err'),
+        control: dateParts(locale, 'from', t(locale, 'closures.add.from'), kept, 'cl-from-err') }),
+      fieldRow({ label: t(locale, 'closures.add.to'), error: keptError(kept, 'to', 'cl-to-err'),
+        control: dateParts(locale, 'to', t(locale, 'closures.add.to'), kept, 'cl-to-err') }),
+      cardActs(`<button class="btn" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
+    ] })}</form>`;
+  const hoursErr = hours?.error ? `<span class="fielderr" role="alert" id="pf-working_hours-err">${esc(hours.error)}</span>` : undefined;
+  const when = setSection({ id: 'hours', title: t(locale, 'biz.now.hours'), rows: [
+    fieldRow({ label: t(locale, 'settings.field.workingHours'), forId: 'pf-working_hours', error: hoursErr,
+      control: `<input id="pf-working_hours" name="working_hours" value="${esc(hours ? hours.typed : v.workingHours ?? '')}" placeholder="${esc(t(locale, 'settings.workingHours.ph'))}"${hoursErr ? ' aria-invalid="true" aria-describedby="pf-working_hours-err"' : ''} />` }),
+    ...(v.zone ? [zoneRow(v.zone, locale)] : []),
+  ] });
+  return `${pageHead(t(locale, 'settingsArea.hours'), t(locale, 'settingsArea.hoursHint'))}
     ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'closures.intro', { name }))}</p>
-    <details class="note-fold closure-said"><summary>${esc(t(locale, 'closures.example.sum'))}</summary><p class="measure-prose">${esc(example)}</p></details>
-    ${embedded ? `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.now'))}</h3>${closureList}` : ''}
-    <form method="post" action="/app/settings/closures" class="biz-form">
-      ${embedded ? `<h3 class="sgroup-h">${esc(t(locale, 'biz.closures.add'))}</h3>` : ''}
-      ${rowsCard(null, [
-        fieldRow({ label: t(locale, 'closures.add.label'), forId: 'cl-label', desc: t(locale, 'closures.add.shown'), error: keptError(kept, 'label', 'cl-label-err'),
-          control: `<input id="cl-label" name="label" required maxlength="80" placeholder="${esc(t(locale, 'closures.add.placeholder'))}" value="${keptValue(kept, 'label')}"${keptInvalid(kept, 'label', 'cl-label-err')} />` }),
-        // The warmth run, phase 9 (V1-008) — each date in the owner's language: day, month by name, year.
-        fieldRow({ label: t(locale, 'closures.add.from'), error: keptError(kept, 'from', 'cl-from-err'),
-          control: dateParts(locale, 'from', t(locale, 'closures.add.from'), kept, 'cl-from-err') }),
-        fieldRow({ label: t(locale, 'closures.add.to'), error: keptError(kept, 'to', 'cl-to-err'),
-          control: dateParts(locale, 'to', t(locale, 'closures.add.to'), kept, 'cl-to-err') }),
-        cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>`),
-      ])}
-    </form>
-    ${embedded ? '' : closureList}`;
+    ${closed}
+    ${add}
+    ${saveForm(HOURS_PAGE, `${when}${saveActs(locale)}`, { id: 'hours-form' })}`;
 }
 
 /* ── M45 · samples ───────────────────────────────────────────────────────── */
@@ -1345,33 +1280,82 @@ export function incotermOptions(locale: Locale, chosen: string | null): string {
     choices.map((k) => `<option value="${esc(k)}"${chosen === k ? ' selected' : ''}>${esc(incotermMeaning(locale, k))}</option>`).join('')}`;
 }
 
-export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
+/** Where How you sell is drawn, and where the one Save of its terms and samples sections is sent (rule 104). */
+export const SELLING_PAGE = '/app/settings/business/selling';
+
+/**
+ * THE SETTINGS OVERHAUL (rule 104) — the payment and delivery terms and the sample policy are SECTIONS of How you
+ * sell (they were two pages), drawn only where the workspace keeps export settings (`exportSettingsShown()`), and
+ * saved by that page's one Save (`POST SELLING_PAGE`). The owner's (price rules): anyone else reads what is stated
+ * and that the owner decides. "Never makes them up" and what an unstated policy means stay on the page.
+ * `kept`: a refused field, under it, with everything typed kept.
+ */
+export function sellingTermsSections(terms: TermsView, samples: SamplesView, locale: Locale, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null): string {
   const name = assistantName(locale);
   // V1-537 — payment terms stated alone say so, and what follows from it.
-  const stated = v.terms
-    ? `<p class="stated-now">${v.terms.incoterm ? `<bdi>${esc(v.terms.incoterm)}</bdi> · ` : ''}<bdi>${esc(v.terms.paymentTerms)}</bdi></p>
-       <p class="muted">${esc(v.terms.incoterm ? incotermMeaning(locale, v.terms.incoterm) : t(locale, 'terms.stated.noIncoterm'))}</p>
-       <p class="muted">${esc(t(locale, 'terms.setOn', { date: show.date(locale, v.terms.statedAt) }))}</p>`
+  const statedTerms = terms.terms
+    ? `<p class="stated-now">${terms.terms.incoterm ? `<bdi>${esc(terms.terms.incoterm)}</bdi> · ` : ''}<bdi>${esc(terms.terms.paymentTerms)}</bdi></p>
+       <p class="muted">${esc(terms.terms.incoterm ? incotermMeaning(locale, terms.terms.incoterm) : t(locale, 'terms.stated.noIncoterm'))}</p>
+       <p class="muted">${esc(t(locale, 'terms.setOn', { date: show.date(locale, terms.terms.statedAt) }))}</p>`
     : `<div class="empty notset">${esc(t(locale, 'terms.none', { name }))}</div>`;
   const kept0 = kept?.values['incoterm'];
-  const chosen = kept0 !== undefined ? (kept0.trim().toUpperCase() || null) : v.terms?.incoterm ?? null;
-  return `${back(HOW_YOU_SELL, t(locale, 'factory.sellhow.title'))}
-    <h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
-    ${flashBanner(flash)}
-    <section class="block">
-      <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
-      ${stated}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="sform biz-form">
-        ${rowsCard(null, [
-          /* Phase 9 (V1-539) — the example is a line under the name, which wraps; a placeholder was cut off on a phone. */ fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', desc: t(locale, 'terms.payment.example'), error: keptError(kept, 'payment', 'tm-payment-err'),
-            control: `<input id="tm-payment" name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
-              value="${kept ? keptValue(kept, 'payment') : v.terms ? esc(v.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
-          fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }), error: keptError(kept, 'incoterm', 'tm-incoterm-err'),
-            control: `<select id="tm-incoterm" name="incoterm"${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${incotermOptions(locale, chosen)}</select>` }),
-          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'terms.save'))}</button>`),
-        ])}
-      </form>` : ownerDecides(locale)}
-    </section>`;
+  const chosen = kept0 !== undefined ? (kept0.trim().toUpperCase() || null) : terms.terms?.incoterm ?? null;
+  const termsSec = setSection({ id: 'terms', title: t(locale, 'terms.title'), rows: [
+    setNotice({ text: t(locale, 'terms.intro', { name }) }),
+    statedTerms,
+    ...(viewer.isOwner ? [
+      /* Phase 9 (V1-539) — the example is a line under the name, which wraps; a placeholder was cut off on a phone. */ fieldRow({ label: t(locale, 'terms.payment.label'), forId: 'tm-payment', desc: t(locale, 'terms.payment.example'), error: keptError(kept, 'payment', 'tm-payment-err'),
+        control: `<input id="tm-payment" name="payment" maxlength="${MAX_PAYMENT_TERMS}"
+          value="${kept ? keptValue(kept, 'payment') : terms.terms ? esc(terms.terms.paymentTerms) : ''}"${keptInvalid(kept, 'payment', 'tm-payment-err')} />` }),
+      fieldRow({ label: t(locale, 'terms.incoterm.label'), forId: 'tm-incoterm', desc: t(locale, 'terms.incoterm.hint', { name }), error: keptError(kept, 'incoterm', 'tm-incoterm-err'),
+        control: `<select id="tm-incoterm" name="incoterm"${keptInvalid(kept, 'incoterm', 'tm-incoterm-err')}>${incotermOptions(locale, chosen)}</select>` }),
+    ] : []),
+  ] });
+
+  const statedSamples = samples.policy
+    ? `<p class="stated-now">${
+        isZero(samples.policy.price)
+          ? esc(t(locale, 'samples.current.free'))
+          : esc(t(locale, 'samples.current.paid', { price: show.money(locale, samples.policy.price) }))
+      } <span class="muted">${esc(t(locale, samples.policy.creditedOnFirstOrder
+        ? 'samples.current.credited' : 'samples.current.notCredited'))}</span></p>
+      <p class="muted">${esc(t(locale, 'samples.setOn', { date: show.date(locale, samples.policy.statedAt) }))}</p>`
+    : `<div class="empty notset">${esc(t(locale, 'samples.empty', { name }))}</div>`;
+  const currency = samples.currency ?? samples.policy?.price.currency ?? null;
+  const credited = kept ? kept.values['credited'] === 'on' : samples.policy?.creditedOnFirstOrder === true;
+  const samplesSec = setSection({ id: 'samples', title: t(locale, 'settingsArea.samplesPolicy'), rows: [
+    setNotice({ text: t(locale, 'samples.intro', { name }), door: { href: '/app/customers/samples', label: t(locale, 'settingsArea.sampleRequests') } }),
+    statedSamples,
+    ...(viewer.isOwner ? [
+      /* Phase 9 (V1-535) — the price says which money it is in. */ fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
+        desc: currency ? t(locale, 'samples.price.desc', { currency: currencyInLine(locale, currency) }) : t(locale, 'samples.price.free'),
+        control: `<input id="sm-price" name="price" inputmode="decimal" value="${kept ? keptValue(kept, 'price') : samples.policy ? esc(String(samples.policy.price.amount)) : ''}"${keptInvalid(kept, 'price', 'sm-price-err')} />` }),
+      /* Phase 9 (new-08) — the tick at the start of its column, its label the 44px target. */ fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
+        control: `<span class="chkbox"><input id="sm-credited" type="checkbox" name="credited" ${credited ? 'checked' : ''} /></span>` }),
+    ] : []),
+  ] });
+  return viewer.isOwner
+    ? saveForm(SELLING_PAGE, `${termsSec}${samplesSec}${saveActs(locale)}`, { id: 'selling-form' })
+    : `${termsSec}${samplesSec}${ownerDecides(locale)}`;
+}
+
+/**
+ * What the one Save of How you sell's two sections was sent, read as two answers. A section nobody filled and that
+ * states nothing yet is not an answer (`null`): the Save is never held up by it. A section sent exactly as it is
+ * stated is not one either: stating INSERTS (what was promised in March stays on record), so saying the same thing
+ * again would only add a row that says nothing new.
+ */
+export function sellingAnswers(terms: TermsView, samples: SamplesView, b: Readonly<Record<string, string | undefined>>): {
+  readonly terms: { readonly payment: string; readonly incoterm: string } | null;
+  readonly samples: { readonly price: string; readonly credited: boolean } | null;
+} {
+  const payment = String(b['payment'] ?? '').trim(), incoterm = String(b['incoterm'] ?? '').trim().toUpperCase();
+  const sameTerms = terms.terms ? payment === terms.terms.paymentTerms && incoterm === (terms.terms.incoterm ?? '') : payment === '' && incoterm === '';
+  const price = String(b['price'] ?? '').trim(), credited = b['credited'] === 'on';
+  const sameSamples = samples.policy
+    ? price === String(samples.policy.price.amount) && credited === samples.policy.creditedOnFirstOrder
+    : price === '' && !credited;
+  return { terms: sameTerms ? null : { payment, incoterm }, samples: sameSamples ? null : { price, credited } };
 }
 
 /** The address SHE captured. Never inferred from a message. */
@@ -1405,21 +1389,11 @@ export async function markSampleHandled(
   });
 }
 
-export function renderSamples(
-  v: SamplesView, locale: Locale, flash: Flash | null, now: Date, viewer: Viewer = OWNER_VIEW, kept: Kept | null = null, mode: 'all'|'policy'|'requests' = 'all',
-): string {
-  const name = assistantName(locale);
-  const stated = v.policy
-    ? `<p class="stated-now">${
-        isZero(v.policy.price)
-          ? esc(t(locale, 'samples.current.free'))
-          : esc(t(locale, 'samples.current.paid', { price: show.money(locale, v.policy.price) }))
-      } <span class="muted">${esc(t(locale, v.policy.creditedOnFirstOrder
-        ? 'samples.current.credited' : 'samples.current.notCredited'))}</span></p>
-      <p class="muted">${esc(t(locale, 'samples.setOn', { date: show.date(locale, v.policy.statedAt) }))}</p>`
-    : `<div class="empty notset">${esc(t(locale, 'samples.empty', { name }))}</div>`;
-  const currency = v.currency ?? v.policy?.price.currency ?? null;
-
+/**
+ * Customers › Sample requests: who is waiting for a sample, oldest first. (What a sample costs is a section of How
+ * you sell since rule 104; this page leads there.)
+ */
+export function renderSampleRequests(v: SamplesView, locale: Locale, flash: Flash | null, now: Date): string {
   const waiting = v.waiting.length === 0
     ? `<div class="empty whole">${esc(t(locale, 'samples.requests.empty'))}</div>`
     : `<ul class="sreqs">${v.waiting.map((r) => `<li>
@@ -1438,45 +1412,11 @@ export function renderSamples(
           </form>
         </div>
       </li>`).join('')}</ul>`;
-
-  // Phase 9 (V1-534) — reached from How you sell ("Samples ›"), and back there.
-  return `${back(mode==='all'?HOW_YOU_SELL:mode==='requests'?'/app/customers':'/app/settings/business', t(locale, mode==='all'?'factory.sellhow.title':mode==='requests'?'nav.customers':'settingsArea.business'))}
-    <h1 class="page">${esc(t(locale, mode==='requests'?'settingsArea.sampleRequests':mode==='policy'?'settingsArea.samplesPolicy':'samples.title'))}</h1>
+  return `${back('/app/customers', t(locale, 'nav.customers'))}
+    <h1 class="page">${esc(t(locale, 'settingsArea.sampleRequests'))}</h1>
     ${flashBanner(flash)}
-    ${mode==='requests'?'':`<section class="block">
-      <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
-      ${stated}
-      ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="sform biz-form">
-        ${rowsCard(null, [
-          /* Phase 9 (V1-535) — the price says which money it is in. */ fieldRow({ label: t(locale, 'samples.price.label'), forId: 'sm-price', error: keptError(kept, 'price', 'sm-price-err'),
-            desc: currency ? t(locale, 'samples.price.desc', { currency: currencyInLine(locale, currency) }) : t(locale, 'samples.price.free'),
-            control: `<input id="sm-price" name="price" inputmode="decimal" required value="${kept ? keptValue(kept, 'price') : v.policy ? esc(String(v.policy.price.amount)) : ''}"${keptInvalid(kept, 'price', 'sm-price-err')} />` }),
-          /* Phase 9 (new-08) — the tick at the start of its column, its label the 44px target. */ fieldRow({ label: t(locale, 'samples.credited.label'), forId: 'sm-credited',
-            control: `<span class="chkbox"><input id="sm-credited" type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} /></span>` }),
-          cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'samples.save'))}</button>`),
-        ])}
-      </form>` : ownerDecides(locale)}
-    </section>`}
-    ${mode==='policy'?deeper('/app/customers/samples',t(locale,'settingsArea.sampleRequests')):`<section class="block">
+    <section class="block">
       <h2>${esc(t(locale, 'samples.requests.title'))}</h2>
       ${waiting}
-    </section>${deeper('/app/settings/business/samples',t(locale,'settingsArea.samplesPolicy'))}`}`;
-}
-
-/** Read current profile values without inventing a second partial profile write. */
-// UI Block 7 (F35) — the values as the profile's own rows show them (one pattern: name and why on the start side, the
-// value on the end side), each by its name in the owner's language (a zone was its raw IANA name, a currency its code),
-// and a read-only value says why it is read-only (rules 41, 42). The door to change it only where it can change here.
-export function settingsProfileValue(locale:Locale,subject:'hours'|'currency',p:BusinessProfile,z:ZoneChoice|null,c:CurrencyChoice|null,viewer:Viewer=OWNER_VIEW):string {
- const value=(v:string|null)=>`<span class="fr-value">${v?`<bdi>${esc(v)}</bdi>`:esc(t(locale,'settingsArea.notSet'))}</span>`;
- const door=(hash:string)=>`<p class="biz-door">${deeper('/app/settings/business/profile'+hash,t(locale,'settingsArea.changeProfile'))}</p>`;
- const rows=subject==='hours'
-  ?[fieldRow({label:t(locale,'settings.field.workingHours'),control:value(p.workingHours)}),
-    fieldRow({label:t(locale,'settings.zone.label'),desc:t(locale,'settings.zone.why'),control:value(z?zoneLabel(locale,z.zone):null)})]
-  :[fieldRow({label:t(locale,'settings.currency.label'),desc:t(locale,c?.fixed?'settings.currency.fixed':'settings.currency.why'),
-    control:value(c?currencyLabel(locale,c.currency):null)+(c&&!c.fixed&&!viewer.isOwner?ownerDecides(locale):'')})];
- // Hours and the zone change on the profile (anyone who may open it); the currency only by the owner, and only until
- // the first price is set: once fixed, no door leads to a choice that is not there.
- const changes=subject==='hours'?door('#pf-working_hours'):c&&!c.fixed&&viewer.isOwner?door('#zone'):'';
- return `<h1 class="page">${esc(t(locale,subject==='hours'?'settingsArea.hours':'settingsArea.currency'))}</h1><p class="lede">${esc(t(locale,subject==='hours'?'settingsArea.hoursHint':'settingsArea.currencyHint'))}</p><div class="biz-form biz-now">${rowsCard(t(locale,subject==='hours'?'biz.now.hours':'biz.now.currency'),rows)}${changes}</div>`;
+    </section>${deeper('/app/settings/business/selling#samples', t(locale, 'settingsArea.samplesPolicy'))}`;
 }

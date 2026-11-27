@@ -1,20 +1,18 @@
 import { sql } from 'kysely';
 import { type Db, withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { type MessageKey, countryName } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { BUSINESS_KINDS, canonicalCountry, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
-import { back, esc } from './layout.js';
-import { flashBanner, type Flash } from './flash.js';
-import { fieldRow, rowsCard, saveBar, keptError, keptInvalid, type Kept } from './rows.js';
-import { factList, editFold, editActs } from './editFold.js';
+import { esc } from './layout.js';
+import { fieldRow, keptError, keptInvalid, type Kept } from './rows.js';
 
 
 /**
  * A2 — what kind of business this is, after sign-up.
  *
- * Sign-up asks once; this is where she changes her answer, and where a
+ * Sign-up asks once; Business profile's section "Type and website" is where the answer changes, and where a
  * workspace made before sign-up asked (the first one, and every invitation
  * spent before 0056) gives it for the first time. Three things only: the kind,
  * the country and the website. Team size and "where buyers write today" were
@@ -65,46 +63,41 @@ export async function saveBusinessKind(
   return 'saved';
 }
 
-export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: Flash | null, backLabel: string, kept: Kept | null = null, embedded = false): string {
+/**
+ * The settings overhaul (rule 104) — the kind, the country and the website as rows of Business profile's one form
+ * (its section "Type and website"). `kept`: a refused save, with what was typed (`v` then holds the typed values) and
+ * the refusal under the field it is about. Nothing here is `required`: the page's one Save is not held up by an
+ * answer nobody has given yet; the route says which answer is wrong when one was changed.
+ */
+export function businessKindRows(v: BusinessKindView, locale: Locale, kept: Kept | null = null): string[] {
   const option = (value: string, label: string, chosen: string | null): string =>
     `<option value="${esc(value)}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`;
   const pick = `<option value="">${esc(t(locale, 'signup.pick'))}</option>`;
   // Phase 9 (V1-475) — in Chinese 中国 leads the list: in pinyin order it was the 248th of 250.
   const countries = countryOptions(locale);
   const ordered = locale === 'zh' ? [...countries.filter((c) => c.code === 'CN'), ...countries.filter((c) => c.code !== 'CN')] : countries;
-  // Phase 9 (V1-472, settings-a-new-07) — the heading names the three things
-  // the page holds, as Setup's row does; (V1-473) and the page says what each
-  // is used for, and when a change counts.
-  // Phase 7 — a fact about the business: reached from My business, and back there.
-  // UI Block 9 (F10) — on Business profile the part reads first (its three values) and its form opens on purpose, open
-  // at rest while the kind or the country is not answered; its own page (the form alone) is unchanged.
-  const country = v.country === null ? null : canonicalCountry(v.country);
-  const facts = embedded ? factList(locale, [
-    [t(locale, 'signup.kind'), v.kind ? esc(t(locale, `business.kind.${v.kind}` as MessageKey)) : ''],
-    // The country reads as its form's list names it (countryName's short names, "USA", were the export trade's).
-    [t(locale, 'signup.country'), country ? `<bdi>${esc(countryOptions(locale).find((c) => c.code === country)?.name ?? countryName(locale, country) ?? country)}</bdi>` : ''],
-    [t(locale, 'signup.website'), v.website ? `<bdi dir="ltr">${esc(v.website)}</bdi>` : ''],
-  ]) : '';
-  const form = `<form method="post" action="/app/settings/business" class="sform${embedded ? ' biz-form' : ''}">
-      ${rowsCard(null, [
-        // Phase 9 (w4-settings-a-11) — sent back, the answer that was wrong says so under itself; the others are kept.
-        fieldRow({ label: t(locale, 'signup.kind'), forId: 'bk-kind', error: keptError(kept, 'kind', 'bk-kind-err'),
-          control: `<select id="bk-kind" name="kind" required${keptInvalid(kept, 'kind', 'bk-kind-err')}>${pick}${BUSINESS_KINDS.map((k) =>
-            option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select>` }),
-        // Phase 9 (V1-474) — the country, and where the town goes instead: two questions, not one asked twice.
-        fieldRow({ label: t(locale, 'signup.country'), forId: 'bk-country', error: keptError(kept, 'country', 'bk-country-err'),
-          desc: t(locale, 'business.kind.countryDesc', { location: t(locale, 'settings.field.location'), profile: t(locale, 'settings.profile.title') }),
-          control: `<select id="bk-country" name="country" required autocomplete="country"${keptInvalid(kept, 'country', 'bk-country-err')}>${pick}${ordered.map((c) =>
-            option(c.code, c.name, v.country === null ? null : canonicalCountry(v.country))).join('')}</select>` }),
-        fieldRow({ label: t(locale, 'signup.website'), forId: 'bk-website', error: keptError(kept, 'website', 'bk-website-err'),
-          control: `<input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
-            inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url"${keptInvalid(kept, 'website', 'bk-website-err')} />` }),
-        // UI Block 7 (F35) — on Business profile, one subject among several: its act in its own card, saying what it saves.
-        ...(embedded ? [editActs(locale, t(locale, 'biz.save.kind'), true)] : []),
-      ])}
-      ${embedded ? '' : saveBar(t(locale, 'business.kind.save'))}
-    </form>`;
-  return `${embedded ? `<h2>${esc(t(locale,'settingsArea.kind'))}</h2>` : `${back('/app/business', backLabel)}<h1 class="page">${esc(t(locale, 'business.kind.title'))}</h1>`}
-    ${flashBanner(flash)}
-    ${embedded ? `${facts}${editFold(t(locale, 'edit.change.kind'), !v.kind || !country || !!kept, form)}` : form}`;
+  const country = v.country === null || v.country === '' ? null : canonicalCountry(v.country.toUpperCase());
+  return [
+    // Phase 9 (w4-settings-a-11) — sent back, the answer that was wrong says so under itself; the others are kept.
+    fieldRow({ label: t(locale, 'signup.kind'), forId: 'bk-kind', error: keptError(kept, 'kind', 'bk-kind-err'),
+      control: `<select id="bk-kind" name="kind"${keptInvalid(kept, 'kind', 'bk-kind-err')}>${pick}${BUSINESS_KINDS.map((k) =>
+        option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select>` }),
+    // Phase 9 (V1-474) — the country, and where the town goes instead: two questions, not one asked twice.
+    fieldRow({ label: t(locale, 'signup.country'), forId: 'bk-country', error: keptError(kept, 'country', 'bk-country-err'),
+      desc: t(locale, 'business.kind.countryDesc', { location: t(locale, 'settings.field.location'), profile: t(locale, 'settings.profile.title') }),
+      control: `<select id="bk-country" name="country" autocomplete="country"${keptInvalid(kept, 'country', 'bk-country-err')}>${pick}${ordered.map((c) =>
+        option(c.code, c.name, country)).join('')}</select>` }),
+    fieldRow({ label: t(locale, 'signup.website'), forId: 'bk-website', error: keptError(kept, 'website', 'bk-website-err'),
+      control: `<input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
+        inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url"${keptInvalid(kept, 'website', 'bk-website-err')} />` }),
+  ];
+}
+
+/** Whether what the form sent for the three is what is stored: then there is nothing of theirs to save (or to refuse). */
+export function businessKindUnchanged(stored: BusinessKindView, typed: { readonly kind: string; readonly country: string; readonly website: string }): boolean {
+  const country = stored.country === null ? '' : canonicalCountry(stored.country);
+  const typedCountry = typed.country.trim().toUpperCase();
+  return typed.kind.trim() === (stored.kind ?? '')
+    && (typedCountry === country || (isCountryCode(typedCountry) && canonicalCountry(typedCountry) === country))
+    && typed.website.trim() === (stored.website ?? '');
 }

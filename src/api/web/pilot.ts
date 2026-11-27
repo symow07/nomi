@@ -943,10 +943,24 @@ export function renderPilotTechnical(
 ): string {
   // Phase 9 (w4-today-setup-20) — the way back is the shell's, above the heading as everywhere (`BACK_TO`).
   return `<h1 class="page">${esc(t(locale, 'pilot.technical.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'pilot.technical.intro'))}</p>`
-    + (o.meta ? metaSection(o.meta, locale, o.templateState ?? 'none') : '')
+    <p class="muted">${esc(t(locale, 'pilot.technical.intro'))}</p>${technicalBody(locale, o)}`;
+}
+
+type TechnicalParts = NonNullable<Parameters<typeof renderPilotTechnical>[1]>;
+const technicalBody = (locale: Locale, o: TechnicalParts): string =>
+  (o.meta ? metaSection(o.meta, locale, o.templateState ?? 'none') : '')
     + (o.rehearsal ? engineSection(o.rehearsal, locale) : '')
     + (o.deployment ? deploymentSection(o.deployment, locale, o.unauthoredPriceRules ?? 0) : '');
+
+/**
+ * Rule 104 — the same technical details as the LAST section of Settings › Channels (`#technical`): read-only, so it
+ * is folded under its name (a fold is allowed for read-only detail, never for a field). Drawn only for whoever the
+ * page was for: the owner of the installation's own workspace (the route decides). `open` draws it unfolded, for a
+ * link that asks for it (the older address `/app/settings/channels/technical`).
+ */
+export function renderTechnicalSection(locale: Locale, o: TechnicalParts, open = false): string {
+  return `<details class="sa-subject ch-fold set-tech" id="technical"${open ? ' open' : ''}><summary><h2 class="sa-sname">${esc(t(locale, 'pilot.technical.title'))}</h2></summary>
+    <div class="sa-body"><p class="muted">${esc(t(locale, 'pilot.technical.intro'))}</p>${technicalBody(locale, o)}</div></details>`;
 }
 
 

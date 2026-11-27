@@ -285,7 +285,9 @@ describe('M39 · what she reads', () => {
     // path can ask it too, and takes its clock explicitly there (core owns no
     // clock). The rule this pins is unchanged: the page renders the predicate's
     // answer, never a second derivation of it.
-    expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),');
+    // (Rule 104 — the answer is taken once, into `satisfied`, and handed to each channel's own page.)
+    expect(src).toContain('const satisfied = satisfiedRequirements(data.templateState, data.domain, new Date());');
+    expect(src).toContain('renderReach(locale, satisfied,');
     expect(src).toContain("${reach('whatsapp')}");
     expect(src).toContain("${reach('email')}");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');

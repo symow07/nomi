@@ -16,7 +16,7 @@ import { parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { flagsOf, needsTick, editRow } from '../../src/core/onboard/importReview.js';
 import { renderPriceRules, type PriceRulesView } from '../../src/api/web/priceRules.js';
 import { renderFactory, renderBusinessScreen, type FactoryView } from '../../src/api/web/factory.js';
-import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, certRows, CERTS_HOME, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
+import { renderKnowledgeIndex, renderProductKnowledge, loadProductKnowledge, certTable, CERTS_HOME, type KnowledgeIndex, type ProductKnowledge } from '../../src/api/web/knowledge.js';
 import { renderKnowledgeOps, renderKnowledgePeriod, type KnowledgeOps } from '../../src/api/web/knowledge-insights.js';
 import { renderPageFactsForm } from '../../src/api/web/pageFacts.js';
 import { readFileSync } from 'node:fs';
@@ -869,17 +869,26 @@ describe('What your assistant knows', () => {
     // The warmth run, phase 9 (w4-products-knowledge-02) — drawn on What you promise customers.
     const inSentence = (l: Locale, s: string) => (l === 'zh' || l === 'ar' ? s : s.charAt(0).toLocaleLowerCase(l) + s.slice(1));
     for (const l of LOCALES) {
-      const html = plain(certRows(l, index.certs ?? [], 12));
+      // Rule 104 — a certification is a row of a table: its name in words, and a switch that says its state in words.
+      const html = plain(certTable(l, index.certs ?? [], 12));
+      const row = (key: 'claim.food_grade' | 'claim.CE'): string => {
+        const at = html.indexOf(`<th scope="row"><bdi>${esc(t(l, key))}</bdi></th>`);
+        expect(at, `${l} ${key}`).toBeGreaterThan(-1);
+        return html.slice(at, html.indexOf('</tr>', at));
+      };
       expect(html, l).not.toMatch(/>food_grade<|>BPA_free<|for all 12[^<]*food_grade/);
-      expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.food_grade'))}</bdi></b> <span class="pill">${esc(t(l, 'knowledge.cert.off'))}</span>`);
-      expect(html, l).toContain(`<b><bdi>${esc(t(l, 'claim.CE'))}</bdi></b> <span class="pill ok">${esc(t(l, 'knowledge.cert.on'))}</span>`);
-      // The question names it in words, and the button — which the ask-first dialog repeats — says what it does.
-      expect(html, l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: inSentence(l, t(l, 'claim.food_grade')), n: 12 })))}">${esc(t(l, 'knowledge.cert.turnOn'))}</button>`);
+      expect(row('claim.food_grade'), l).toContain(`aria-checked="false"`);
+      expect(row('claim.food_grade'), l).toContain(`<span class="set-state">${esc(t(l, 'knowledge.cert.off'))}</span>`);
+      expect(row('claim.CE'), l).toContain(`aria-checked="true"`);
+      expect(row('claim.CE'), l).toContain(`<span class="set-state">${esc(t(l, 'knowledge.cert.on'))}</span>`);
+      // The question names it in words, and the switch — which the ask-first dialog repeats — is named by what it does.
+      expect(row('claim.food_grade'), l).toContain(`aria-label="${esc(`${t(l, 'knowledge.cert.turnOn')}: ${t(l, 'claim.food_grade')}`)}"`);
+      expect(row('claim.food_grade'), l).toContain(`data-confirm="${esc(plain(t(l, 'knowledge.cert.confirmOn', { key: inSentence(l, t(l, 'claim.food_grade')), n: 12 })))}"`);
     }
-    // A plain button: it takes the page's font (`.btn { font:inherit }`), not the browser's.
-    const en = certRows('en', index.certs ?? [], 12);
+    // A real button in its own form: it takes the page's font, not the browser's, and asks before it acts.
+    const en = certTable('en', index.certs ?? [], 12);
     expect(en).not.toMatch(/class="cert( on)? ?"/);
-    expect(en).toMatch(/<button class="btn" type="submit" onclick="return confirm\(this.dataset.confirm\)" data-confirm="Turn on/);
+    expect(en).toMatch(/<button class="set-switch" type="submit" role="switch" aria-checked="false" aria-label="Turn on: [^"]+" onclick="return confirm\(this.dataset.confirm\)" data-confirm="Turn on/);
   });
 
   it('w4-products-knowledge-14 — the state agrees with no name, and the question no longer gives a pronoun of one gender', () => {

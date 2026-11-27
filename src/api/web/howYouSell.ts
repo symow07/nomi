@@ -18,6 +18,7 @@ import {
 import { t, assistantName } from './say.js';
 import { esc, back, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { pageHead, setSection } from './settingsPage.js';
 import * as show from './values.js';
 
 /**
@@ -133,7 +134,13 @@ const title = (l: Locale, q: Question, name: string) =>
  * value, the "done" colour once answered; a setting not answered yet is said
  * in plain words, never in the waiting colour), and the door.
  */
-export function renderHub(v: HubView, locale: Locale, flash: Flash | null): string {
+/**
+ * The settings overhaul (rule 104) — How you sell in the one template: the title is the menu's, one line under it
+ * (how the questions work is in the page's help), the questions as a list of doors (each question is a page of its
+ * own, with its own Save and confirm), and `sections`: the terms and the sample policy, drawn by the caller only
+ * where the workspace keeps export settings, with the page's one Save (settings.ts `sellingTermsSections`).
+ */
+export function renderHub(v: HubView, locale: Locale, flash: Flash | null, sections = ''): string {
   const name = assistantName(locale);
   const done = answeredIn(v.progress);
   const first = v.order.find((q) => !done.has(q)) ?? null;
@@ -146,17 +153,17 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null): stri
       ...(s === 'answered' ? { tone: 'ok' as const } : {}) });
   });
   const position = (q: Question) => ({ i: v.order.indexOf(q) + 1, n: v.order.length });
-  // Phase 7 — reached from My business › How you sell, a menu of the same
-  // name: the page is named for what it holds, the questions, and leads back.
-  return `<div class="dhead">${back('/app/business/how-you-sell', t(locale, 'factory.sellhow.title'))}</div>
-    <h1 class="page">${esc(t(locale, 'hs.questions.title'))}</h1>
+  return `${pageHead(t(locale, 'settingsArea.selling'), t(locale, 'ws.selling.lede', { name }))}
     ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'hs.lede', { name }))}</p>
-    <p class="hs-count">${esc(t(locale, 'hs.count', { done: show.count(locale, answered), total: show.count(locale, v.order.length) }))}</p>
-    ${first ? `<form method="get" action="${HS_BASE}/${first}" class="hs-start"><button class="btn send" type="submit">${esc(t(locale,
+    ${setSection({ id: 'questions', title: t(locale, 'hs.questions.title'), help: t(locale, 'ws.selling.ticks'), rows: [
+      `<p class="hs-count">${esc(t(locale, 'hs.count', { done: show.count(locale, answered), total: show.count(locale, v.order.length) }))}</p>`,
+      // One filled act a page: where the terms and the sample policy are sections here, that act is the page's Save.
+      first ? `<form method="get" action="${HS_BASE}/${first}" class="hs-start"><button class="btn${sections ? '' : ' send'}" type="submit">${esc(t(locale,
         done.size === 0 ? 'hs.start' : 'hs.continue', { i: show.count(locale, position(first).i), n: show.count(locale, position(first).n) }))}</button></form>`
-      : `<p class="muted">${esc(t(locale, 'hs.allDone', { name }))}</p>`}
-    ${menuGroup('questions', null, rows)}`;
+      : `<p class="muted">${esc(t(locale, 'hs.allDone', { name }))}</p>`,
+      menuGroup('questions', null, rows),
+    ] })}
+    ${sections}`;
 }
 
 const errLine = (l: Locale, e: AnswerError | undefined): string => {

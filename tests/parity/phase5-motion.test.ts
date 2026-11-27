@@ -196,7 +196,8 @@ describe('the motion pass · every rule that moves names something the product r
     const one = (sel: string) => TREES.flatMap((tr) => select(tr, sel)).length;
     expect(one('.td-row > li')).toBeGreaterThanOrEqual(8);
     expect(one('#approve')).toBe(1);
-    expect(one('.sgroup + .sgroup + .sgroup')).toBeGreaterThanOrEqual(1);
+    // Rule 104 — the assistant's page is a settings page (Reply permissions): its sections, where the menu's groups were.
+    expect(one('.set-sec')).toBeGreaterThanOrEqual(3);
     expect(one('button.srow')).toBe(1);
     expect(one('.si-order .si-fil.on')).toBe(1);
     expect(one('.mo td.sel .mo-d')).toBe(1);

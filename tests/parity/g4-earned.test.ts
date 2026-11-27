@@ -49,7 +49,15 @@ describe('G4 · the rule, where it is decided', () => {
     const app = src('src/api/web/app.ts');
     // R2 — rung-aware since 0106: a level, or a capability, past the earned rung.
     expect(app).toContain("if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {");
-    expect(app).toContain('if (rungOfLevel(level) > await rungFor(s.businessId)) {');
+    // Rule 104 — the level's two checks are one function (`levelRefusal`), asked by BOTH routes that set a level
+    // (the level alone, and Reply permissions' one Save) before either may choose it.
+    expect(app).toContain("level !== 'waits' && !(deps.autonomyReleased ?? autonomyReleased)() ? 'autonomy.flash.notReleased'\n      : rungOfLevel(level) > await rungFor(businessId) ? 'autonomy.flash.notEarned' : null;");
+    const asked = [...app.matchAll(/await levelRefusal\(s\.businessId, level\)/g)].map((m) => m.index!);
+    const chosen = [...app.matchAll(/await chooseLevel\(s, level\)/g)].map((m) => m.index!);
+    expect(asked).toHaveLength(2);
+    expect(chosen).toHaveLength(2);
+    for (const [i, at] of chosen.entries()) expect(asked[i]!, `route ${i}`).toBeLessThan(at);
+    expect(app.match(/chooseAutonomyLevel\(deps\.db/g)).toHaveLength(1);   // and nothing else chooses one
   });
   it('commitTurn asks it before it would send alone, and names it first', () => {
     const turn = src('src/pipeline/turn.ts');

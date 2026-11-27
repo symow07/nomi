@@ -58,7 +58,9 @@ describe('D4 · the dashboard is read-only, with the doors that must stay open',
       'people\\/[^/]+\\/remove', 'phone\\/[^/]+\\/remove', '(mail|meta|whatsapp)\\/disconnect', 'help\\/write']) {
       expect(list, door).toContain(door);
     }
-    expect(list.match(/\/\^/g)?.length).toBe(8);
+    // Rule 104 — and Account's one Save, which carries the password (the ninth door).
+    expect(list).toContain('personal\\/account$');
+    expect(list.match(/\/\^/g)?.length).toBe(9);
     // 4.1 (0240) — the same one gate, asking which hold (a lapse, or a trial over with no card) to say why in true words.
     expect(app).toMatch(/const why = await withTenantTx\(deps\.db, bid\.value, \(tx\) => billingHoldReason\(tx\)\);\s*if \(!why\) return;\s*const back/);
     expect(app).toContain(`flashTo(reply, to, why === 'trial_over' ? 'frozen.refused.trialOver' : 'frozen.refused')`);

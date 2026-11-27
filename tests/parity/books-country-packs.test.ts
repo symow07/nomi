@@ -7,7 +7,8 @@ import {
 import { BOOKS_RETENTION } from '../../src/core/legal/booksRetention.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../src/db/schemaVersion.js';
 import { holdsMoney } from '../../src/core/books/moneyAccounts.js';
-import { renderBooksCountry, renderMoneyAccounts } from '../../src/api/web/booksCountry.js';
+import { renderBooksCountry } from '../../src/api/web/booksCountry.js';
+import { renderBooksAccountsPage } from '../../src/api/web/booksSettingsPages.js';
 import type { CountryBooksView } from '../../src/db/booksCountry.js';
 import { unisolatedFigures, withoutIsolates } from './isolates.js';
 
@@ -216,17 +217,31 @@ describe('the page, drawn for each country', () => {
     expect(unisolatedFigures(ar)).toEqual([]);
   });
 
-  it('the money subject on the accounts page: an account the rule knows is ticked and fixed; "Barclays Current" is the owner\'s tick', () => {
-    const html = renderMoneyAccounts('en', [
+  // Rewritten for the settings overhaul (rule 104): the 210 tick boxes became a short list. The property is the same:
+  // an account the rule knows is listed and FIXED (no way to remove it); the owner's own tick is listed with Remove;
+  // an account not ticked is not listed, and is offered by the "Add a bank or till" search.
+  it('the money subject on the accounts page: an account the rule knows is listed and fixed; "Savings account" is the owner\'s tick; "Barclays Current" can be added', () => {
+    const none = { salesJournalId: null, receivableAccountId: null, salesAccountId: null, fxLossAccountId: null, fxGainAccountId: null };
+    const draw = (money: Parameters<typeof renderBooksAccountsPage>[1]['money']) => renderBooksAccountsPage('en', { accounts: [], journals: [], chosen: none, money, cgnc: false });
+    const html = draw([
       { id: 'a1', code: '5141', name: 'Banques', marked: true, byRule: true },
       { id: 'a2', code: '1000', name: 'Barclays Current', marked: false, byRule: false },
       { id: 'a3', code: '1010', name: 'Savings account', marked: true, byRule: false },
     ]);
-    expect(html).toContain('action="/app/books/accounts/money"');
-    expect(html).toMatch(/name="money_a1" value="1" checked disabled/);
-    expect(html).toMatch(/name="money_a2" value="1" \/>/);
-    expect(html).toMatch(/name="money_a3" value="1" checked \/>/);
-    expect(html).toContain('by its name');
-    expect(renderMoneyAccounts('en', [])).toContain('No asset account yet.');
+    // Rule 104 — the money list comes before the posting accounts, whose form ends the page with its Save.
+    const money = html.slice(html.indexOf('id="money"'), html.indexOf('id="posting"'));
+    const held = money.slice(money.indexOf('<ul class="rows bk-held">'), money.indexOf('</ul>'));
+    expect(held).toContain('Banques');
+    expect(held).toContain('Counted by its name');
+    expect(held).toContain('Savings account');
+    expect(held).not.toContain('Barclays Current');
+    // one Remove, the owner's tick's, asking first; the account counted by its name has none
+    expect(held.match(/action="\/app\/books\/accounts\/money\/remove"/g)).toHaveLength(1);
+    expect(held).toMatch(/<input type="hidden" name="account" value="a3" \/><button class="btn" type="submit"[^>]*data-confirm="Remove 1010 · Savings account\? A payment can then no longer land in it\."/);
+    expect(money).toContain('action="/app/books/accounts/money/add"');
+    expect(money).toContain('<datalist id="money-accounts"><option value="1000 · Barclays Current"></option></datalist>');
+    // the rule stays on the page, one line
+    expect(money).toContain('A payment can land only in an account added here, or in one whose name says bank or cash.');
+    expect(draw([])).toContain('No asset account yet.');
   });
 });

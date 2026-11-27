@@ -387,8 +387,8 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         if (h1 !== 1) problems.push(`${at}: ${h1} headings of the first rank`);
         // Phase 4 of the UI rebuild — graphite fills ONE act on a page: the one it exists for.
         const fills = html.match(/class="btn send\b/g)?.length ?? 0;
-        // Profile contains two independent original commands: profile and business type.
-        const maxFills = settingsHref(target) === '/app/settings/business/profile' ? 2 : 1;
+        // Rule 104 — no exception left: Business profile is one form with one Save, the kind of business in it.
+        const maxFills = 1;
         if (fills > maxFills && target !== '/app/settings/components') problems.push(`${at}: ${fills} filled buttons — one primary act per page`);
         for (const f of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)) {
           const action = f[1]!.replace(/&amp;/g, '&').split('?')[0]!;

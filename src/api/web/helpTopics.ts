@@ -11,7 +11,8 @@ import type { SetupStep } from '../../db/setup.js';
  */
 export type GuideId =
   | 'setup' | 'profile' | 'channels' | 'whatsapp' | 'approve' | 'inbox' | 'products' | 'away' | 'alone' | 'name'
-  | 'disclosure' | 'data' | 'practice' | 'knowledge' | 'customers' | 'calendar' | 'books' | 'team' | 'billing';
+  | 'disclosure' | 'data' | 'practice' | 'knowledge' | 'customers' | 'calendar' | 'books' | 'team' | 'billing'
+  | 'booksStart' | 'booksAccounts' | 'booksInvoices';
 
 export type Guide = {
   readonly id: GuideId;
@@ -30,14 +31,14 @@ export type Guide = {
 
 export const GUIDES: Readonly<Record<GuideId, Guide>> = {
   setup: { id: 'setup', door: '/app/get-started', lines: 3, source: 'docs/kb/01-first-ten-minutes.md' },
-  profile: { id: 'profile', door: '/app/settings/business/profile', video: 'profile', lines: 2, source: 'page' },
+  profile: { id: 'profile', door: '/app/settings/business/profile', video: 'profile', lines: 3, source: 'page' },
   channels: { id: 'channels', door: '/app/settings/channels', video: 'channels', lines: 3, source: 'docs/kb/02-connect-whatsapp.md' },
   whatsapp: { id: 'whatsapp', door: '/app/settings/channels/whatsapp', lines: 3, source: 'docs/kb/02-connect-whatsapp.md' },
   approve: { id: 'approve', door: '/app/inbox', video: 'first_success', lines: 3, source: 'docs/kb/03-approve-edit-skip.md' },
   inbox: { id: 'inbox', door: '/app/inbox', lines: 3, source: 'page' },
   products: { id: 'products', door: '/app/products/add', video: 'products', lines: 3, source: 'docs/kb/04-catalog-import.md' },
   away: { id: 'away', door: '/app', lines: 3, source: 'docs/kb/05-night-shift.md' },
-  alone: { id: 'alone', door: '/app/settings/assistant/alone', lines: 3, source: 'docs/kb/06-promotion-revoke.md' },
+  alone: { id: 'alone', door: '/app/settings/assistant', lines: 3, source: 'docs/kb/06-promotion-revoke.md' },
   name: { id: 'name', door: '/app/settings/assistant/name', video: 'name', lines: 2, source: 'page' },
   disclosure: { id: 'disclosure', door: '/app/settings/assistant/name', lines: 3, source: 'docs/kb/10-buyer-privacy.md' },
   data: { id: 'data', door: '/app/settings/business/data', lines: 3, source: 'docs/kb/09-data-export.md' },
@@ -48,6 +49,11 @@ export const GUIDES: Readonly<Record<GuideId, Guide>> = {
   books: { id: 'books', door: '/app/books', lines: 2, source: 'page' },
   team: { id: 'team', door: '/app/settings/team', lines: 2, source: 'page' },
   billing: { id: 'billing', door: '/app/settings/billing', lines: 2, source: 'page' },
+  // The settings overhaul (rule 104): the long form of what three books pages now say in one line each, word for word
+  // as those pages said it, in every language it was written in (settingsBooks.ts).
+  booksStart: { id: 'booksStart', door: '/app/settings/books/starting-balances', lines: 3, source: 'page' },
+  booksAccounts: { id: 'booksAccounts', door: '/app/settings/books/accounts', lines: 2, source: 'page' },
+  booksInvoices: { id: 'booksInvoices', door: '/app/settings/books/invoices-out', lines: 3, source: 'page' },
 };
 
 export const guideTitle = (id: GuideId): MessageKey => `help.g.${id}.title` as MessageKey;
@@ -110,6 +116,9 @@ const BY_PREFIX: readonly (readonly [string, readonly GuideId[]])[] = [
   ['/app/settings/people', ['team', 'approve']],
   ['/app/settings/billing', ['billing', 'data']],
   ['/app/settings/books', ['books', 'data']],
+  ['/app/settings/books/starting-balances', ['booksStart', 'books']],
+  ['/app/settings/books/accounts', ['booksAccounts', 'books']],
+  ['/app/settings/books/invoices-out', ['booksInvoices', 'books']],
   ['/app/settings/personal', ['team', 'data']],
 ];
 
@@ -124,6 +133,23 @@ export function helpFor(path: string): readonly GuideId[] {
   }
   return best[1];
 }
+
+/**
+ * The settings overhaul (rule 104) — WHAT A SETTINGS PAGE SAID AT LENGTH. A settings page keeps one line beside each
+ * control; an explanation longer than that stands here, in the page's own help, first, in the words the page had (the
+ * catalogue's own keys, so in every language they were written in). Nothing in a note is a safety line: those stay on
+ * the page (tests/parity/settings-safety-lines.test.ts).
+ */
+export type PageNote = { readonly title: MessageKey; readonly lines: readonly MessageKey[] };
+export const PAGE_NOTES: Readonly<Record<string, readonly PageNote[]>> = {
+  // Reply permissions: the page "How sending without you works", whole.
+  '/app/settings/assistant': [
+    { title: 'her.alone.title', lines: ['autonomy.intro', 'autonomy.needsName', 'autonomy.disclosure'] },
+  ],
+};
+/** The notes of a page, by its path (a query or fragment is ignored); none for most pages. */
+export const notesFor = (path: string): readonly PageNote[] =>
+  PAGE_NOTES[((path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '')) || '/app'] ?? [];
 
 /** The longest page address the help panel takes. */
 export const FROM_MAX = 200;

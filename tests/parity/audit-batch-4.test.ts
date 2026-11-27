@@ -6,10 +6,11 @@ import { renderFec } from '../../src/api/web/booksReports.js';
 import { renderFields } from '../../src/api/web/booksFields.js';
 import { renderSpending } from '../../src/api/web/booksPapers.js';
 import { renderNewEntry } from '../../src/api/web/booksEntries.js';
-import { renderBooksChart, renderBooksOff, ACCOUNTANT_ALSO } from '../../src/api/web/books.js';
+import { renderBooksOff, ACCOUNTANT_ALSO } from '../../src/api/web/books.js';
+import { renderBooksAccountsPage } from '../../src/api/web/booksSettingsPages.js';
 import { renderPeople, type PeopleView } from '../../src/api/web/people.js';
-import { renderAccount } from '../../src/api/web/account.js';
-import { renderLanguage } from '../../src/api/web/settings.js';
+import { readFileSync } from 'node:fs';
+import { renderAccount, ACCOUNT_SAVE } from '../../src/api/web/account.js';
 import { renderPageFactsForm, isPasted, sourceLabel } from '../../src/api/web/pageFacts.js';
 import { shell } from '../../src/api/web/layout.js';
 import { withWorkspace, type RequestScope } from '../../src/api/web/say.js';
@@ -41,19 +42,23 @@ describe('B16 · readiness, one count', () => {
 
 describe('B18 · the accountant keeps their own sign-in', () => {
   it('the password and the language pages are theirs to reach', () => {
-    for (const r of ['GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language'])
+    for (const r of ['GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language', 'GET /app/settings/personal/account', 'POST /app/settings/personal/account'])
       expect(ACCOUNTANT_ALSO.has(r), r).toBe(true);
   });
-  it('their sign-in page leads back to the books and on to the language; the language page back to it', () => {
-    const acct = renderAccount({ email: 'a@x.example', passwordMin: 12, accountant: true }, 'en', null, t('en', 'nav.books'));
-    expect(acct).toContain('href="/app/books"');
-    expect(acct).toContain('href="/app/settings/personal/language"');
-    expect(acct).toContain('action="/app/settings/account/password"');
-    const owner = renderAccount({ email: 'o@x.example', passwordMin: 12 }, 'en', null, t('en', 'nav.setup'));
-    expect(owner).toContain('href="/app/settings"');
-    expect(owner).not.toContain('href="/app/settings/personal/language"');
-    expect(renderLanguage('en', true)).toContain('href="/app/settings/personal/account"');
-    expect(renderLanguage('en')).toContain('href="/app/settings"');
+  // Rewritten for rule 104: the language was a page of its own that the accountant's sign-in page led on to. It is a
+  // section of Account now, so the property B18 guards (an accountant can change their own password AND their own
+  // language, and get out) is held on the one page: both fields in its one Save, and Log out.
+  it('their sign-in page holds the password, the language and the way out, for them as for the owner', () => {
+    for (const v of [{ email: 'a@x.example', passwordMin: 12, accountant: true }, { email: 'o@x.example', passwordMin: 12 }]) {
+      const acct = renderAccount(v, 'en', null);
+      expect(acct).toContain(`<form method="post" action="${ACCOUNT_SAVE}" class="set-form" data-save>`);
+      expect(acct).toContain('name="current"');
+      expect(acct).toContain('<section class="set-sec" id="language"');
+      expect(acct).toMatch(/<select id="acc-language" name="language">(<option value="\w+" lang="\w+"( selected)?>[^<]+<\/option>){5}<\/select>/);
+      expect(acct).toContain('<form method="post" action="/logout"');
+      expect(acct).not.toContain('href="/app/settings/personal/language"');
+    }
+    expect(readFileSync('src/api/web/app.ts', 'utf8')).toContain("movedPage('/app/settings/personal/account#language')");
   });
   it('their rail is the books\' with a door to their sign-in, on every page they reach — never the sales side', () => {
     const page = (path: string) => withWorkspace(scope({ business: 'Atlas Soap', viewerRole: 'accountant' }), () =>
@@ -164,8 +169,9 @@ describe('B22 · the main action is a real primary button', () => {
     expect(filled(renderSpending('en', owner, {rows:[],total:0,from:0,to:0,page:1,pageSize:50,next:null,prev:null}, true))).toEqual([t('en', 'books.papers.keep')]);
     const c = { journals: [], accounts: [], parties: [], taxCodes: [], bookCurrency: 'MAD', fields: [] };
     expect(filled(renderNewEntry('en', c as never, {}, [], '2026-04-10'))).toEqual([t('en', 'books.entry.saveDraft')]);
-    // On the books' home beside the workbook's own form: a real button, not a second filled one.
-    expect(renderBooksChart('en')).toContain(`<button class="btn" type="submit">${t('en', 'books.chart.apply')}`);
+    // The chart's action on the Accounts page (rule 104: in sight, no "Advanced" fold): a real button, not a second filled one.
+    const none = { salesJournalId: null, receivableAccountId: null, salesAccountId: null, fxLossAccountId: null, fxGainAccountId: null };
+    expect(renderBooksAccountsPage('en', { accounts: [], journals: [], chosen: none, money: [], cgnc: true })).toContain(`<button class="btn" type="submit">${t('en', 'books.chart.apply')}`);
   });
   it('People: no form\'s only button is drawn as text', () => {
     const view: PeopleView = {
@@ -173,8 +179,11 @@ describe('B22 · the main action is a real primary button', () => {
       rotation: { on: true, people: [{ id: 'o', name: 'Symow', inRotation: true, awayUntil: null, lastGivenAt: null, accountant: false }] },
     };
     const html = renderPeople(view, 'en', null, new Date());
-    expect(filled(html)).toEqual([t('en', 'people.add.button')]);
-    const turn = html.slice(html.indexOf('action="/app/settings/people/o/turn"'));
-    expect(turn).toMatch(new RegExp(`<button class="btn" type="submit">${t('en', 'turn.save')}`));
+    // Rule 104 — the page's ONE filled button is its Save; adding someone is a real button of its own form, and
+    // "in turn" is a switch (a real button), never a link drawn as text.
+    expect(filled(html)).toEqual([t('en', 'autonomy.save')]);
+    expect(html).toMatch(new RegExp(`<button class="btn" type="submit">${t('en', 'people.add.button')}`));
+    const turn = html.slice(html.indexOf('action="/app/settings/people/o/in-turn"'));
+    expect(turn).toMatch(/^action="\/app\/settings\/people\/o\/in-turn" class="set-act"><input[^>]*><button class="set-switch" type="submit" role="switch"/);
   });
 });

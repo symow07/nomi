@@ -115,23 +115,27 @@ export const NAV_ICON: Readonly<Record<string, RailIcon>> = {
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
-  { hub: '/app/settings/business', routes: ['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s) },
-  { hub: '/app/settings/channels', routes: ['whatsapp','meta','email','chat','telegram','tiktok'].map(s=>'/app/settings/channels/'+s) },
-  { hub: ASSISTANT_HOME, routes: ['alone','name','words','promises','ready','history-policy'].map(s=>ASSISTANT_HOME+'/'+s) },
-  // The navigation block (2026-11-25): the assistant's settings are the assistant area's "Go live" group.
-  { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/knowledge/procedures','/app/assistant/practice','/app/assistant/review','/app/assistant/activity',ASSISTANT_HOME] },
+  // The settings overhaul (2026-11-27, rule 104): ONE Settings area. Its menu page lists every settings page, so the
+  // menu page is the hub of them all. Web chat, Telegram and TikTok are listed only where they can be connected, so
+  // they are not named here; Team, Billing, Data, Shopify and the books' pages are the owner's.
+  { hub: '/app/settings', routes: [
+    ...['profile','selling','hours','currency','data','shopify'].map(s=>'/app/settings/business/'+s), '/app/settings/team', '/app/settings/billing',
+    '/app/settings/channels', ...['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s),
+    ASSISTANT_HOME, ASSISTANT_HOME+'/name', ASSISTANT_HOME+'/promises',
+    ...['country','starting-balances','accounts','invoices-out','connections','fields'].map(s=>'/app/settings/books/'+s),
+    '/app/settings/personal/account', '/app/settings/personal/notifications',
+  ] },
+  // The assistant area keeps its work pages, Going live, and one "Settings" shortcut.
+  { hub: '/app/assistant', routes: ['/app/assistant/knowledge','/app/assistant/knowledge/procedures','/app/assistant/practice','/app/assistant/review','/app/assistant/activity',ASSISTANT_HOME+'/ready'] },
   // M38 — everyone the assistant may write to, reached from the list of
   // everyone who wrote. A — that list is Buyers now (it was Customers).
   { hub: '/app/customers', routes: ['/app/customers/outreach'], outreach: true },
   // S1 (0195) — the saved replies a person answers buyers with: kept under Buyers.
   { hub: '/app/inbox', routes: ['/app/inbox/replies'] },
   { hub: '/app/customers', routes: ['/app/customers/orders', '/app/customers/labels', '/app/customers/feedback'] },
-  // The navigation block: what you sell through (Shopify orders, payment links) sits under Products.
-  { hub: '/app/products', routes: ['/app/products/add', '/app/products/price-limits', '/app/products/whatsapp', '/app/settings/business/shopify', '/app/payments/stripe'] },
-  // ...and the books' settings are the books area's "Setup" group.
-  { hub: '/app/books', routes: ['/app/settings/books'] },
-  { hub: '/app/settings', routes: ['business','channels','team','billing','personal'].map(s=>'/app/settings/'+s) },
-  { hub: '/app/settings/personal', routes: ['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s) },
+  // The navigation block: what you sell through sits under Products (Shopify's own page is Settings › Connections;
+  // Products keeps a shortcut to it, which the sidebar draws).
+  { hub: '/app/products', routes: ['/app/products/add', '/app/products/price-limits', '/app/products/whatsapp', '/app/payments/stripe'] },
   { hub: '/app/onboarding', routes: ['/app/ready', '/app/onboarding/practice', '/app/onboarding/activity'] },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
@@ -3066,10 +3070,14 @@ export function hubFor(path: string, active: string): string {
     ['reports', ['/app/results', '/app/analytics', '/app/settings/assistant/month']],
     ['inbox', ['/app/channels/instagram/comments', '/app/inbox/replies', '/app/replies']],
     ['customers', ['/app/customers', '/app/conversations', '/app/orders', '/app/contacts', '/app/prospects', '/app/sequences', '/app/labels', '/app/surveys']],
-    ['products', ['/app/products', '/app/business/prices', '/app/settings/business/shopify', '/app/payments/stripe']],
+    ['products', ['/app/products', '/app/business/prices', '/app/payments/stripe']],
     ['ask', ['/app/assistant/ask', '/app/advisor']],
-    ['assistant', ['/app/assistant', '/app/knowledge', '/app/sandbox', '/app/settings/assistant']],
-    ['books', ['/app/books', '/app/settings/books']],
+    // The settings overhaul (rule 104): every setting is in the Settings area, the assistant's and the books' too.
+    // What stays lit under Assistant at an address under /app/settings/assistant is what is not a setting: Going
+    // live (a checklist), and the older addresses of Review and Activity.
+    ['assistant', ['/app/assistant', '/app/knowledge', '/app/sandbox', '/app/settings/assistant/ready', '/app/settings/assistant/checks', '/app/settings/assistant/history']],
+    ['settings', ['/app/settings']],
+    ['books', ['/app/books']],
   ];
   for (const [area, routes] of belongs) if (routes.some((r) => url === r || url.startsWith(`${r}/`))) return area;
 
@@ -3124,6 +3132,8 @@ export function hubFor(path: string, active: string): string {
 // page reached from one entry and listed nowhere itself.
 export const BACK_TO: Readonly<Record<string, { readonly href: string; readonly label: MessageKey }>> = {
   '/app/settings/channels/technical': { href: '/app/settings/channels', label: 'settingsArea.channels' },
+  // Rule 104: a person's Ask Nomi history is reached from Ask Nomi, not from the Settings menu.
+  '/app/settings/personal/advisor-history': { href: '/app/assistant/ask', label: 'assistantArea.ask' },
   '/app/onboarding/practice': { href: '/app/assistant/practice', label: 'assistantArea.practice' },
   '/app/onboarding/activity': { href: '/app/results', label: 'nav.reports' },
 };

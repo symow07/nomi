@@ -12,6 +12,8 @@ import { back, deeper, esc } from './layout.js';
 import { icon } from './icons.js';
 import { flashBanner, type Flash } from './flash.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
+import { pageHead, setSection, setNotice, dangerZone } from './settingsPage.js';
+import { historyWorkspaceRows, historyDangerRows } from './advisorHistory.js';
 import type { Viewer } from '../../core/conversation/people.js';
 import { waitingAsks, type WaitingAsk } from '../../db/deletionAsks.js';
 import { faceVersions } from '../../db/faces.js';
@@ -87,6 +89,11 @@ export type DataRightsView = {
   readonly books?: BooksHolding | null;
   /** E1 (0205) — the papers kept, and whether the owner's own copy holds them all; null when there are none. */
   readonly papers?: PapersHolding | null;
+  /**
+   * Rule 104 — the workspace's Ask Nomi history policy, a section of this page (it was a page of its own): whether
+   * the workspace allows history, and the team whose history the owner may delete unread. Absent: not drawn.
+   */
+  readonly history?: { readonly workspaceOn: boolean; readonly team: readonly { readonly id: string; readonly name: string }[] } | null;
 };
 
 type RequestRow = {
@@ -303,7 +310,7 @@ const STATE_KEY: Readonly<Record<DeletionRequest['state'], MessageKey>> = {
 };
 
 export function renderDataRights(
-  v: DataRightsView, locale: Locale, flash: Flash | null, viewer: Viewer, backLabel: string,
+  v: DataRightsView, locale: Locale, flash: Flash | null, viewer: Viewer, _backLabel = '',
 ): string {
   const open = v.requests.find((r) => r.scope === 'workspace' && r.state === 'open') ?? null;
 
@@ -326,27 +333,20 @@ export function renderDataRights(
 
   // 0130 — the advisor's history: the owner's own conversations only (D4; never anyone else's, D2), and the
   // page with the switches and the team.
-  const advisor = `<section class="block" id="advisor-history">
-    <h2>${esc(t(locale, 'advisor.history.title'))}</h2>
-    <ul class="scard dl-files"><li class="row">
+  const advisor = setSection({ id: 'advisor-history', title: t(locale, 'advisor.history.title'), rows: [
+    ...(v.history && viewer.isOwner ? historyWorkspaceRows(locale, v.history.workspaceOn) : []),
+    ...(v.history && viewer.isOwner && v.history.team.length === 0 ? [setNotice({ text: t(locale, 'advisor.history.noTeam') })] : []),
+    `<ul class="scard dl-files"><li class="row">
       <span>${esc(t(locale, 'advisor.history.mine'))}</span>
       <a class="dl-get" href="/app/settings/advisor-history/history.csv" download>${icon('download')}<span>${esc(t(locale, 'data.export.download'))}</span></a>
     </li></ul>
-    <div class="doors">${deeper('/app/settings/advisor-history', t(locale, 'advisor.history.manage'))}</div>
-  </section>`;
-  const files = `<section class="block" id="copy">
-    <h2>${esc(t(locale, 'data.export.title'))}</h2>
-    <p class="lede">${esc(t(locale, 'data.export.lead'))}</p>
-    ${links(record)}
-  </section>
-  <section class="block">
-    <h2>${esc(t(locale, 'data.export.configTitle'))}</h2>
-    <p class="lede">${esc(t(locale, 'data.export.configLead'))}</p>
-    ${links(CONFIG)}
+    <div class="doors">${deeper('/app/settings/advisor-history', t(locale, 'advisor.history.manage'))}</div>`,
+  ] });
+  const files = `${setSection({ id: 'copy', title: t(locale, 'data.export.title'), help: t(locale, 'data.export.lead'), rows: links(record) })}
+  ${setSection({ id: 'config', title: t(locale, 'data.export.configTitle'), help: t(locale, 'data.export.configLead'), rows: `${links(CONFIG)}
     ${/* Phase 9 (V1-500, V1-496) — the limit as a figure is written, and who "us" is, where an address is known. */ ''}<p class="muted">${esc(v.contact
       ? both(t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }), t(locale, 'data.export.limitWrite', { email: v.contact }))
-      : t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }))}</p>
-  </section>`;
+      : t(locale, 'data.export.limit', { n: show.count(locale, EXPORT_MAX_ROWS) }))}</p>` })}`;
 
   // G9a's rule, applied here: a page that refuses on submit is worse than a
   // page that says whose decision it is. Staff see the history; they are not
@@ -363,7 +363,7 @@ export function renderDataRights(
     ? `<p><span class="pill warn">${esc(t(locale, 'data.deletion.state.open'))}</span>${esc(t(locale, 'data.deletion.pending', {
         date: show.date(locale, open.askedAt),
       }))}</p>
-      <form method="post" action="/app/settings/data/withdraw" class="pform">
+      <form method="post" action="/app/settings/data/withdraw" class="set-act">
         <input type="hidden" name="id" value="${esc(open.id)}" />
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'data.deletion.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
@@ -371,38 +371,27 @@ export function renderDataRights(
     : '';
   // The installation's own workspace is never erased from inside it: its owner
   // asks the Nomi team, who carry it out with the same steps (erase-workspace).
-  const request = open ? '' : `<form method="post" action="/app/settings/data/delete">
-          ${rowsCard(null, [
-            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }), forId: 'dr-name',
-              control: '<input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" />' }),
-            fieldRow({ label: t(locale, 'data.deletion.why'), forId: 'dr-note',
-              control: '<input id="dr-note" name="note" maxlength="500" autocomplete="off" />' }),
-            cardActs(`<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-            data-confirm="${esc(t(locale, 'data.deletion.askConfirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button>`),
-          ])}
-        </form>`;
-  // UI Block 7 (F37) — closing is a review of its own: the heading and one line say what it does; the fold holds the
-  // whole consequence right beside the unchanged form (same field, route, confirmation and red button). An open
-  // request stays outside it, a standing state with its own Take that back.
-  const consequence = `<p class="lede">${esc(both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.now')))}</p>`;
-  const review = (key: MessageKey, body: string) => `<details class="sa-subject data-review"><summary><span>${esc(t(locale, key))}</span></summary>
-      <div class="sa-body">${consequence}${body}</div></details>`;
-  const ask = !viewer.isOwner
-    ? `${consequence}<p class="muted">${esc(t(locale, 'data.deletion.ownerOnly'))}</p>`
+  // Rule 104 — closing is the LAST row of the page's danger zone: what it does in one line, the whole consequence
+  // under it (always on the page: it was behind a fold), the name to type, and the button, which asks first. The
+  // same routes, fields and confirmations as before. The installation's own workspace is never erased from inside
+  // it: its owner asks the Nomi team, who carry it out with the same steps (erase-workspace).
+  const consequence = both(t(locale, 'data.deletion.lead'), t(locale, 'data.deletion.now'));
+  const typeName = `<label class="fld" for="dr-name"><span class="caption">${esc(t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }))}</span>
+      <input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" /></label>`;
+  const closeForm = !viewer.isOwner ? `<p class="muted">${esc(t(locale, 'data.deletion.ownerOnly'))}</p>`
     : v.closable === false
-      ? `${pending}${request ? review('data.close.reviewAsk', `<p class="muted">${esc(t(locale, 'data.deletion.protected'))}</p>${request}`)
-        : `<p class="muted">${esc(t(locale, 'data.deletion.protected'))}</p>`}`
-      // Phase 9 (settings-a-new-13, V1-493) — the request as the settings pages'
-      // card of rows; its button red, for what it takes away.
-      : `${pending}${review('data.close.review', `<form method="post" action="/app/settings/data/close">
-          <input type="hidden" name="asked" value="0" />
-          ${rowsCard(null, [
-            fieldRow({ label: t(locale, 'data.deletion.typeName', { name: show.isolate(locale, v.businessName) }), forId: 'dr-name',
-              control: '<input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" />' }),
-            cardActs(`${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
-            data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.close'))}</button>`),
-          ])}
-        </form>`)}`;
+      ? (open ? '' : `<form method="post" action="/app/settings/data/delete" class="set-act">${typeName}
+          <label class="fld" for="dr-note"><span class="caption">${esc(t(locale, 'data.deletion.why'))}</span>
+            <input id="dr-note" name="note" maxlength="500" autocomplete="off" /></label>
+          <button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'data.deletion.askConfirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button></form>`)
+      : `<form method="post" action="/app/settings/data/close" class="set-act"><input type="hidden" name="asked" value="0" />${typeName}
+          ${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.close'))}</button></form>`;
+  const closeRow = `<div class="set-danger-row" id="close"><div class="fr-l"><span class="fr-name">${esc(t(locale, 'data.deletion.title'))}</span>
+      <span class="fr-desc">${esc(t(locale, 'data.close.short'))}</span><span class="fr-desc">${esc(consequence)}</span>
+      ${viewer.isOwner && v.closable === false ? `<span class="fr-desc">${esc(t(locale, 'data.deletion.protected'))}</span>` : ''}</div>
+      <div class="dr-close">${pending}${closeForm}</div></div>`;
 
   const workspace = v.requests.filter((r) => r.scope === 'workspace');
   const history = workspace.length === 0 ? '' : `<section class="block">
@@ -425,8 +414,7 @@ export function renderDataRights(
     ['close', 'data.deletion.title']];
   const index = `<nav class="dr-index" aria-labelledby="dr-index-h"><p class="dr-index-h" id="dr-index-h">${esc(t(locale, 'data.index'))}</p><ul>${subjects.map(([id, k]) =>
     `<li><a href="#${id}">${esc(t(locale, k))}</a></li>`).join('')}</ul></nav>`;
-  return `${back('/app/settings/setup', backLabel)}
-    <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
+  return `${pageHead(t(locale, 'settingsArea.data'), t(locale, 'ws.data.lede'))}
     ${flashBanner(flash)}
     ${index}
     ${files}
@@ -434,13 +422,9 @@ export function renderDataRights(
     ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [], both, v.photos)}
     ${books}
     ${papers}
-    <section class="block" id="close">
-      <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
-      <p class="dr-short">${esc(t(locale, 'data.close.short'))}</p>
-      ${ask}
-    </section>
     ${history}
     ${deeper('/privacy', t(locale, 'legal.privacyLink'))}
+    ${dangerZone(locale, [...(v.history && viewer.isOwner ? historyDangerRows(locale, v.history.team) : []), closeRow])}
     `;
 }
 

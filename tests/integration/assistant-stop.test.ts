@@ -553,8 +553,8 @@ d('Stop · PAGE — My business and Today say what is true (requires DATABASE_UR
   afterAll(async () => { await web?.app.close(); await db?.destroy(); });
 
   it('PAGE · answering: My business offers Stop on every channel, confirmed first', async () => {
-    // Phase 7 — on its going-live screen, one tap from the menu, whose row says where it stands.
-    expect((await web.get('/app/settings/assistant')).body).toContain('href="/app/settings/assistant/ready"');
+    // Rule 104 — Reply permissions carries the Stop itself, at the top, asking first; Going live keeps its own.
+    expect((await web.get('/app/settings/assistant')).body).toMatch(/id="stop">[\s\S]*?action="\/app\/business\/stop-assistant"[\s\S]*?onclick="return confirm\(this\.dataset\.confirm\)"/);
     const html = (await web.get('/app/settings/assistant/ready')).body;
     expect(html).toContain('data-golive="every"');
     expect(html).toContain('action="/app/business/stop-assistant"');
@@ -565,6 +565,11 @@ d('Stop · PAGE — My business and Today say what is true (requires DATABASE_UR
   it('PAGE · stopped: My business says so, offers Start, and says nothing about the assistant answering anyone', async () => {
     await web.post('/app/business/stop-assistant');
     expect((await web.get('/app/settings/assistant/ready')).body).toContain('is stopped on every channel');
+    // Reply permissions says so in the place its Stop was, and the way to start again is Going live's.
+    const permissions = (await web.get('/app/settings/assistant')).body;
+    expect(permissions).toContain('is stopped on every channel');
+    expect(permissions).not.toContain('action="/app/business/stop-assistant"');
+    expect(permissions).toContain('href="/app/settings/assistant/ready#stop"');
     const html = (await web.get('/app/settings/assistant/ready')).body;
     expect(html).toContain('is stopped on every channel');
     expect(html).toContain('action="/app/business/start-assistant"');

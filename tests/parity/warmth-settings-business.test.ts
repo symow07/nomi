@@ -1,14 +1,14 @@
-import {renderSettingsGroup,renderSettingsIndex} from '../../src/api/web/settingsArea.js';
+import {renderSettingsIndex} from '../../src/api/web/settingsArea.js';
 import { describe, it, expect } from 'vitest';
+import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { readFileSync } from 'node:fs';
 import {
   renderFactory, renderBusinessScreen, BUSINESS_SCREEN_PATH, BUSINESS_FACTS_PATH, BUSINESS_PRODUCTS_PATH,
   type BusinessScreen, type FactoryView,
 } from '../../src/api/web/factory.js';
 import {
-  renderSetup, renderLanguage, renderProfile, renderTerms, renderSamples, renderClosures, renderRate, type SetupView,
+  renderSetup, renderProfile, renderHours, renderCurrency, type SetupView,
 } from '../../src/api/web/settings.js';
-import { renderBusinessKind } from '../../src/api/web/businessKind.js';
 import { renderPriceRules } from '../../src/api/web/priceRules.js';
 import { shell, esc, CONTEXTUAL_ROUTES_BY_HUB, BACK_TO, hubFor } from '../../src/api/web/layout.js';
 import { renderChannelScreen, CHANNEL_SCREENS } from '../../src/api/web/channels.js';
@@ -120,7 +120,8 @@ describe('phase 7 · every former section is one tap from the landing', () => {
     ['factory.prices.title', '/app/products/price-limits'], ['factory.sellhow.title', BUSINESS_SCREEN_PATH.how],
     ['factory.reach.title', BUSINESS_SCREEN_PATH.channels], ['business.row.live', BUSINESS_SCREEN_PATH.ready],
   ];
-  const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/language',
+  // Rule 104 — the language is a section of You › Account (one select, saved with the page's Save).
+  const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/account#language',
     '/app/settings/team', '/app/settings/personal/account', '/app/settings/billing', '/app/settings/business/data'];
 
   for (const l of LOCALES) {
@@ -194,7 +195,15 @@ describe('phase 7 · the channels have ONE home: My business', () => {
       expect(row.label).toBe(inScope(() => esc(t(l, 'factory.reach.title'))));
       expect(row.value).toBe(`${inScope(() => t(l, 'reach.channel.whatsapp'))} · ${inScope(() => t(l, 'reach.channel.instagram'))}`);
       // Phase 9 (w4-business-assistant-05) — a row per channel, each opening its own screen once.
-      for (const s of CHANNEL_SCREENS) expect(screen('channels', l).split(`href="${s==='alerts'?'/app/settings/personal/notifications#whatsapp':'/app/settings/channels/'+s}"`).length - 1, `${l} ${s}`).toBe(1);
+      // Rule 104 (the owner's condition 3) — a channel this installation cannot connect is a row that says so and
+      // opens nothing: no door to an empty page. Every other channel's row opens its screen once.
+      const cannot = ['chat', 'telegram', 'tiktok'];
+      for (const s of CHANNEL_SCREENS) expect(screen('channels', l).split(`href="${s==='alerts'?'/app/settings/personal/notifications#whatsapp':'/app/settings/channels/'+s}"`).length - 1, `${l} ${s}`).toBe(cannot.includes(s) ? 0 : 1);
+      for (const k of ['reach.channel.web_chat', 'reach.channel.telegram', 'reach.channel.tiktok'] as const) {
+        const at = screen('channels', l).indexOf(`<span class="sr-label">${inScope(() => esc(t(l, k)))}</span>`);
+        expect(at, `${l} ${k}`).toBeGreaterThan(0);
+        expect(screen('channels', l).slice(at, at + 400), `${l} ${k}`).toContain(inScope(() => esc(t(l, 'connect.state.notHere'))));
+      }
       const s = setup(l);
       for (const gone of ['href="/app/channels"', `href="${BUSINESS_SCREEN_PATH.channels}"`, `>${inScope(() => esc(t(l, 'nav.channels')))}<`])
         expect(s, `${l} ${gone}`).not.toContain(gone);
@@ -210,8 +219,10 @@ describe('phase 7 · the channels have ONE home: My business', () => {
 });
 
 describe('phase 7 · every screen a level down starts with its way back', () => {
-  const backs: Record<BusinessScreen, string> = {
-    channels: '/app/settings/business', allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/settings/business', promises: '/app/settings/business', how: '/app/settings/business',
+  // Rule 104 — "Promises and words" and Channels are pages of the Settings menu now: each opens on its heading (the
+  // menu is its way back, drawn by the shell), as every settings page on the template does.
+  const backs: Partial<Record<BusinessScreen, string>> = {
+    allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/settings/business', how: '/app/settings/business',
   };
   for (const l of LOCALES) {
     it(`${l} · My business's screens, and the pages its rows open`, () => {
@@ -221,19 +232,28 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
         expect(html.indexOf('<h1 class="page">'), `${l} ${s}: the heading under it`).toBeGreaterThan(0);
         expect(html.match(/<h1 /g), `${l} ${s}: one heading`).toHaveLength(1);
       }
+      expect(screen('promises', l).trimStart().startsWith('<h1 class="page">'), `${l} promises`).toBe(true);
+      expect(screen('promises', l).match(/<h1 /g), `${l} promises: one heading`).toHaveLength(1);
       const from = (html: string, href: string) => expect(withoutIsolates(html).trimStart().startsWith(`<a class="back" href="${href}">`), `${l} → ${href}`).toBe(true);
       inScope(() => {
-        from(renderProfile(SET_UP.profile, l, null), '/app/settings/business');
-        from(renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.factory')), '/app/settings/business');
+        // Rule 104 — a page of the Settings menu has the menu beside it (and the chooser on a phone): it draws no
+        // "back" of its own, and starts with its title, the menu's label, once.
+        const menuPage = (html: string, title: MessageKey) => {
+          expect(html.trimStart().startsWith(`<h1 class="page">${esc(t(l, title))}</h1>`), `${l} ${title}`).toBe(true);
+          expect(html, `${l} ${title}`).not.toContain('class="back"');
+          expect(html.match(/<h1 /g), `${l} ${title}: one heading`).toHaveLength(1);
+        };
+        menuPage(renderProfile(SET_UP.profile, l, null, {}, {}, null, null, undefined, {}, { view: { kind: 'manufacturer', country: 'CN', website: null } }), 'settingsArea.profile');
+        menuPage(renderHours({ workingHours: null, zone: null, closures: [] }, l, null), 'settingsArea.hours');
+        menuPage(renderCurrency({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, null, l, null), 'settingsArea.currency');
         // Price limits now belong to Products; the wrapper preserves a first-child back link.
         const limits = renderPriceRules(SET_UP.prices, l);
         expect(limits).toMatch(/^<section class="product-limits"><a class="back" href="\/app\/products">/);
         expect(limits.match(/<h1 /g)).toHaveLength(1);
-        from(renderTerms({ terms: null }, l, null), BUSINESS_SCREEN_PATH.how);
-        from(renderSamples({ policy: null, waiting: [] }, l, null, new Date()), BUSINESS_SCREEN_PATH.how);
-        from(renderClosures({ closures: [] }, l, null), BUSINESS_SCREEN_PATH.how);
-        from(renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, l, null), BUSINESS_SCREEN_PATH.how);
-        from(renderLanguage(l), '/app/settings');
+        // Rule 104 — Channels is a page of the Settings menu, in the one template: its title first (the menu is the
+        // way back), one heading. The language is a section of You › Account, not a screen of its own.
+        expect(screen('channels', l).trimStart().startsWith('<h1 class="page">'), `${l} channels`).toBe(true);
+        expect(screen('channels', l).match(/<h1 /g), `${l} channels: one heading`).toHaveLength(1);
       });
     });
   }
@@ -247,7 +267,8 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
     for (const s of CHANNEL_SCREENS) {
       const page = inScope(() => renderChannelScreen(s, { whatsapp: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
         displayId: null, lastActivityAt: null, problem: null, activated: false }, ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null }, 'en', null));
-      expect(page.startsWith(`<a class="back" href="${BUSINESS_SCREEN_PATH.channels}">`), s).toBe(true);
+      // Rule 104 — each channel's page starts with its own title, the menu's label; the sidebar is the way back.
+      expect(page.startsWith('<h1 class="page">'), s).toBe(true);
       expect(page, s).not.toContain(`<h1 class="page">${esc(t('en', 'factory.reach.title'))}</h1>`);
     }
   });
@@ -263,10 +284,11 @@ describe('phase 7 · two doors, one data', () => {
     // the profile page is the only form for the facts: no screen of My business repeats a field of it
     for (const s of ['channels', 'allowlist', 'ready', 'promises', 'how'] as const)
       expect(screen(s, 'en'), s).not.toMatch(/name="(description|location|working_hours|contact_email|contact_phone)"/);
-    // Product records have their own area; business configuration stays in Settings; the assistant's own settings
-    // are the assistant area's (the navigation block, 2026-11-25).
+    // Product records have their own area; every setting is in Settings, the assistant's too (the settings overhaul,
+    // 2026-11-27, rule 104); Going live, a checklist, stays in the assistant's area.
     for (const path of [BUSINESS_FACTS_PATH, BUSINESS_PRODUCTS_PATH, '/app/products/abc', ...Object.values(BUSINESS_SCREEN_PATH)])
-      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') ? 'products' : path.startsWith('/app/settings/assistant') ? 'assistant' : 'settings');
+      expect(hubFor(path, 'none'), path).toBe(path.startsWith('/app/products') ? 'products' : path === '/app/settings/assistant/ready' ? 'assistant' : 'settings');
+    expect(Object.values(BUSINESS_SCREEN_PATH)).toContain('/app/settings/assistant/ready');
   });
 });
 
@@ -275,19 +297,42 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
   // every route the map names under it. The same, for the hubs this phase drew,
   // without a database: the owner's view of a business that sells in dollars
   // from China (so the rate has something to convert, as the walk's tenant).
-  const drawn: Record<string, string> = {
-    '/app/settings/business': inScope(()=>renderSettingsGroup('en','business',{isOwner:true},null)),
-    [BUSINESS_SCREEN_PATH.channels]: screen('channels', 'en'),
-    '/app/settings': withWorkspace({...SCOPE,books:true},()=>renderSettingsIndex('en',null,{isOwner:true})),
-    '/app/settings/personal':inScope(()=>renderSettingsGroup('en','personal',{isOwner:true},null)),
-  };
+  // The settings overhaul (2026-11-27, rule 104): ONE hub, the Settings menu page, which lists every settings page
+  // in five groups (it was three menus: Settings' groups, a Business page and a Personal page).
+  const menu = (facts: Partial<RequestScope> = {}) => withWorkspace({...SCOPE,books:true,viewerRole:'owner',...facts},()=>renderSettingsIndex('en',null,{isOwner:true}));
+  const menuHrefs = (html: string) => [...html.matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]!);
+  const drawn: Record<string, string> = { '/app/settings': menu() };
   for (const [hub, html] of Object.entries(drawn)) {
     it(`${hub} links to every route the map names under it`, () => {
       const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
-      expect(routes.length, hub).toBeGreaterThan(0);
+      expect(routes).toHaveLength(23);
       for (const r of routes) expect(html, `${r} must stay linked from ${hub}`).toContain(`href="${r}"`);
+      // ...and nothing else: the menu page is the 23 pages, in the menu's order, under its five headings.
+      expect([...menuHrefs(html)].sort()).toEqual([...routes].sort());
+      expect([...html.matchAll(/<section class="sa-menu" id="([a-z]+)">/g)].map((m) => m[1])).toEqual(['workspace', 'connections', 'assistant', 'books', 'you']);
+      expect(html).toContain('<form method="post" action="/logout" class="sa-logout">');
     });
   }
+
+  it('the menu page keeps who-sees-what: an accountant only You; a team member no owner-only page; Books only where it is on', () => {
+    expect(menuHrefs(menu({ viewerRole: 'accountant' }))).toEqual(['/app/settings/personal/account']);
+    const team = menuHrefs(menu({ viewerRole: 'team' }));
+    for (const h of ['/app/settings/team', '/app/settings/billing', '/app/settings/business/data', '/app/settings/business/shopify']) expect(team, h).not.toContain(h);
+    expect(team.filter((h) => h.startsWith('/app/settings/books'))).toEqual([]);
+    expect(team).toContain('/app/settings/assistant');
+    expect(menuHrefs(menu({ books: false })).filter((h) => h.startsWith('/app/settings/books'))).toEqual([]);
+  });
+
+  it('web chat, Telegram and TikTok are on the menu only where this installation can connect them (the owner\'s condition 3)', () => {
+    const three = ['/app/settings/channels/chat', '/app/settings/channels/telegram', '/app/settings/channels/tiktok'];
+    for (const h of three) expect(menuHrefs(menu()), h).not.toContain(h);
+    expect(menuHrefs(menu({ channelsHere: { chat: true, telegram: false, tiktok: true } })).filter((h) => three.includes(h))).toEqual([three[0], three[2]]);
+  });
+
+  it('Channels still opens the three channels every installation offers', () => {
+    const html = screen('channels', 'en');
+    for (const r of ['whatsapp', 'meta', 'email']) expect(html).toContain(`href="/app/settings/channels/${r}"`);
+  });
 
   it('the rate row is there only where something converts, as before', () => {
     expect(screen('how', 'en', { ...SET_UP, connection: { ...SET_UP.connection, country: 'US' } })).not.toContain('href="/app/settings/business/currency"');
@@ -303,6 +348,6 @@ describe('phase 7 · the map the walk reads is true of what the pages draw', () 
     const empty = rowsOf(screen('how', 'en', FIRST_DAY, { isOwner: true }));
     expect(empty.map((r) => r.value)).toEqual(['0 of 9 answered', 'Not set up', 'Not set up', 'None planned']);
     const waiting = rowsOf(screen('how', 'en', { ...SET_UP, menu: { ...SET_UP.menu!, samples: { price: usd('5'), waiting: 2 } } }));
-    expect(waiting.find((r) => r.href === '/app/settings/business/samples')!.value).toBe('2 requests waiting');
+    expect(waiting.find((r) => r.href === '/app/settings/business/selling#samples')!.value).toBe('2 requests waiting');
   });
 });

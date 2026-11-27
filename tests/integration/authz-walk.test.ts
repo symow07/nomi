@@ -111,10 +111,10 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
   '/app/sandbox/message': { text: 'authz', expected: '' },
   // A golden scenario's own id (H3): without one the route stops at "no such scenario", before Practice is asked at all.
   '/app/sandbox/scenario': { scenarioId: SCENARIOS[0]!.id }, '/app/advisor/consent': { choice: 'allow' }, '/app/customers/import/:id/select': { selection: 'all' },
-  '/app/settings/business': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/inbox/:conversationId/order/step-in': { proposalId: '@orderProposal2' }, '/app/channels/approval': { page: 'https://www.instagram.com/authzshop' },
+  '/app/settings/business': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/settings/business/profile': { kind: 'manufacturer', country: 'MA', website: '' }, '/app/inbox/:conversationId/order/step-in': { proposalId: '@orderProposal2' }, '/app/channels/approval': { page: 'https://www.instagram.com/authzshop' },
   '/app/books/fields': { key: 'authz_g', label: 'Authz field', kind: 'text', appliesTo: 'entry', choices: '', required: '' },
   '/app/books/parties': { code: 'AUTHZ2', name: 'Authz party', country: '', ice: '', taxNumber: '', address: '' },
-  '/app/settings/alerts/channel': { channel: 'email' }, '/app/help/write': { words: 'authz' },
+  '/app/settings/alerts/channel': { channel: 'email' }, '/app/settings/personal/notifications': { channel: 'email' }, '/app/help/write': { words: 'authz' },
   '/app/books/spending/bills': { ref: 'B-2', date: '2026-04-21', gross: '12', noref: '', label: 'Bill authz', category: '@category', account: '', payFrom: '@bank', tax: '', supplier: '', newSupplier: 'Authz supplier', ads: '' },
   '/app/books/closing/start': { day: '2026-04-01', length: 'month' }, '/app/books/closing/reopen': { reason: 'authz', day: '' }, '/app/books/closing/lock': { day: '2026-10-31' }, '/app/inbox/:conversationId/maybe-yes/order': { quantity: '10' },
   // Two balanced lines of an entry; one line of an invoice; one line given back on a credit note (the other lines
@@ -127,6 +127,16 @@ const ROUTE_WORDS: Record<string, Record<string, string>> = {
     ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].flatMap((i) => [[`account${i}`, ''], [`quantity${i}`, ''], [`price${i}`, ''], [`label${i}`, ''], [`tax${i}`, '']])) }])),
   ...Object.fromEntries(['/app/books/invoices/:id/credit-notes', '/app/books/invoices/:id/credit-notes/preview', '/app/books/credit-notes/:id/edit'].map((u) => [u, { reason: 'authz', issueDate: '2026-04-22', qty1: '1' }])), '/app/inbox/:conversationId/translate': { draftId: '@draft4' },
   '/app/settings/closures': { from: '2026-12-01', to: '2026-12-02' },
+  // Rule 104 — no page draws the follow-up rule's older form (Reply permissions saves it with its one Save), so the walk
+  // sends that command what the form sent: on, after two days, in the owner's words.
+  '/app/settings/assistant/follow-ups': { enabled: '1', delayDays: '2', wording: 'Following up: authz' },
+  // Rule 104 — the accounts that hold money gain one row at a time, by a search field: an asset account not yet among
+  // them (the seeded bank is counted by its number, so it is no choice); and the posting accounts, as the page draws them.
+  '/app/books/accounts/money/add': { account: '@deposit' },
+  '/app/books/settings/accounts': { salesJournal: '@journal_sales', receivable: '@receivable', sales: '@income', fxLoss: '', fxGain: '' },
+  // Rule 104 — no page draws the older terms form any more (the terms are a section of How you sell, saved by its one
+  // Save), so the walk sends that command what the form sent: how customers pay, and a delivery term.
+  '/app/settings/terms': { payment: 'authz terms', incoterm: 'FOB' },
   // Fix round 3 (F4, F6): what each of these reads before it reads an id. A year's close names the account its result
   // goes to and the journal; a follow-up is confirmed at its position; a reading's lines are ticked by key; a request
   // is withdrawn by its id; a state's tax names the state; a statement's columns are chosen over its first rows.
@@ -485,6 +495,7 @@ const NOT_REACHED: Record<string, readonly [how: string, why: string]> = {
   "POST /app/business/pilot/end": ["refused: pilot.flash.not_active", "pilot mode belongs to a live WhatsApp channel; the walk's workspace has none activated"],
   "POST /app/prospects/key/remove": ["refused: prospects.flash.failed", "no prospect-search key is stored for the walk's workspace"],
   "POST /app/settings/rate": ["refused: rate.flash.none", "the rate page exists only where the selling currency differs from the country's (MAD in MA)"],
+  "POST /app/settings/business/currency": ["refused: rate.flash.none", "Currency's one Save (rule 104), sent the walk's rate: there is a rate to set only where the selling currency differs from the country's (MAD in MA)"],
   "POST /app/channels/instagram/connect": ["refused: reach.inbound.flash.notConfigured", "takes no id; it connects the installation's own configured Instagram account, and the walk configures none: 'not configured' after the connection gate, before anything is written"],
   "POST /app/channels/messenger/connect": ["refused: reach.inbound.flash.notConfigured", "takes no id; it connects the installation's own configured Facebook Page, and the walk configures none: 'not configured' after the connection gate, before anything is written"],
   "POST /app/sequences/:id/enroll": ["refused: seq.flash.notLive", "enrolling needs the outbound worker (messaging is off in the walk's composition): 'notLive'"],
@@ -674,6 +685,8 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     await one('receivable', `insert into accounts (business_id, code, name, kind) values ($W, '3421', 'Customers ' || $MARK, 'asset') returning id::text as id`);
     await one('expense', `insert into accounts (business_id, code, name, kind) values ($W, '6111', 'Costs ' || $MARK, 'expense') returning id::text as id`);
     await one('income', `insert into accounts (business_id, code, name, kind) values ($W, '7111', 'Sales ' || $MARK, 'income') returning id::text as id`);
+    // An asset account neither ticked nor counted by its name: the one "Add a bank or till" may add (rule 104).
+    await one('deposit', `insert into accounts (business_id, code, name, kind) values ($W, '3489', 'Deposits ' || $MARK, 'asset') returning id::text as id`);
     await one('journal', `insert into journals (business_id, code, name, kind) values ($W, 'BQ', 'Banque', 'bank') returning id::text as id`);
     for (const [k, code, kind] of [['purchases', 'AC', 'purchases'], ['sales', 'VT', 'sales'], ['cash', 'CA', 'cash'], ['general', 'OD', 'general']] as const) {
       await one(`journal_${k}`, `insert into journals (business_id, code, name, kind) values ($W, '${code}', '${kind} ' || $MARK, '${kind}') returning id::text as id`);
@@ -1121,7 +1134,10 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // An id's box drawn empty stays empty ("none chosen"; `label` is words as often as an id, and is typed): a person
     // cannot type into a hidden box, and words in one are
     // not an id (the prices form's empty `productId` answered 500 to 'authz': reported, not this walk's to judge).
-    const typed = (fields: [string, string][]): [string, string][] => fields.map(([n, v]) => [n, v !== '' ? v : n in WORDS ? WORDS[n]! : n !== 'label' && (idFields.includes(n) || /(Id|_id)$/.test(n)) ? '' : 'authz']);
+    // Rule 104 — the posting accounts are search boxes that choose an account by its number and name (they were lists):
+    // an id's box too. Drawn empty (`fxLoss`), it is "none chosen"; words typed in it match no account and are refused.
+    const PICKS = new Set(['receivable', 'sales', 'fxLoss', 'fxGain']);
+    const typed = (fields: [string, string][]): [string, string][] => fields.map(([n, v]) => [n, v !== '' ? v : n in WORDS ? WORDS[n]! : n !== 'label' && (idFields.includes(n) || /(Id|_id)$/.test(n) || PICKS.has(n)) ? '' : 'authz']);
     const routeOf = (method: string, action: string) => {
       const path = action.split('?')[0]!;
       return walk.filter((r) => r.method === method && new RegExp(`^${r.url.replace(/:\w+/g, '[^/]+')}$`).test(path))
@@ -1229,7 +1245,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // history or the workspace's standing.
     const ENDS = /\/(archive|remove|delete|discard|stop|disconnect|off|skip|revert|leave|dismiss|retire|end|unmatch|reject|cancel|lock|reopen|again|stale|drop)(\/|$)/;
     // A waiting cost's "skip" runs on its own row before any "post" (a drawn post form may take either row).
-    const lateness = (url: string) => /\/advisor-history\/(workspace|me)$/.test(url) ? 5 : /\/alerts\/phone\/:id\/remove$/.test(url) ? 2.5 : /\/products\/import\/:importId\/confirm$/.test(url) ? 2.6 : /\/proposals\/:id\/skip$/.test(url) ? 0.4 : /\/(forget|purge|erase|close|withdraw)(\/|$)/.test(url) ? 5 : /\/restore(\/|$)/.test(url) ? 4
+    // Rule 104 — the workspace's history switch is drawn on Data and privacy now, a page crawled before a person's own
+    // history: switched off first, it deletes everyone's and leaves the person's own switch nothing to do. So: after it.
+    const lateness = (url: string) => /\/advisor-history\/workspace$/.test(url) ? 6 : /\/advisor-history\/me$/.test(url) ? 5 : /\/alerts\/phone\/:id\/remove$/.test(url) ? 2.5 : /\/products\/import\/:importId\/confirm$/.test(url) ? 2.6 : /\/proposals\/:id\/skip$/.test(url) ? 0.4 : /\/(forget|purge|erase|close|withdraw)(\/|$)/.test(url) ? 5 : /\/restore(\/|$)/.test(url) ? 4
       : ENDS.test(url) ? 3 : /\/resume(\/|$)/.test(url) ? 2 : /\/(takeover|handto|step-in)(\/|$)/.test(url) ? 1
       // A draft is changed before it is issued or posted (after, it never changes).
       : /\/(issue|post)(\/|$)/.test(url) ? 0.5
@@ -1240,8 +1258,14 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     const attempts: { r: { method: string; url: string }; method: string; url: string; body: Body; where: string; late: number }[] = [];
     const reachC = await crawl(ws.C);
     for (const [, all] of reachC.copies) {
-      const f = all[all.length - 1]!;
-      const r = routeOf('POST', f.action); if (!r) continue;
+      const r = routeOf('POST', all[all.length - 1]!.action); if (!r) continue;
+      // A route pinned to its own row (`ROUTE_OWN`), or one that ends or undoes something: the drawn copy that names
+      // the rows the walk's own call names, where one is drawn; else (and for every other route) the last copy. Which
+      // copy is last is the crawl's order: since rule 104 it reaches the live sequence's page and the second check's,
+      // and their last copies archived the sequence whose enrolment "stop" needs and kept the check "revert" needs —
+      // refusals that proved nothing.
+      const ownUrl = ROUTE_OWN[r.url] || lateness(r.url) >= 3 ? r.url.replace(/:(\w+)/g, (_m, name: string) => ownParam(ws.C, r.url, name) ?? '') : '';
+      const f = all.find((x) => ownUrl !== '' && x.action.split('?')[0] === ownUrl) ?? all[all.length - 1]!;
       // A route pinned to one value (`=hours`) is reached with that value only: How you sell's confirm asks for the
       // answer its own question's form saved, and another question's form reaching `:q` first left none to confirm.
       const pinned = ROUTE_OWN[r.url] ?? {}; const segs = r.url.split('/'); const got = f.action.split('?')[0]!.split('/');
@@ -1267,7 +1291,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       else attempts.push({ r, method: r.method, url: url + q, body: { kind: 'form', data: urlencoded(body) }, where: `reach ${key}`, late });
     }
     // Pages first, while C is as seeded: a page reads, and what a form changed must not decide whether it is drawn.
-    for (const a of [-1, -0.6, -0.5, 0, 0.4, 0.5, 0.6, 0.7, 0.75, 1, 2, 2.5, 2.6, 3, 4, 5].flatMap((k) => attempts.filter((x) => x.late === k))) {
+    for (const a of [-1, -0.6, -0.5, 0, 0.4, 0.5, 0.6, 0.7, 0.75, 1, 2, 2.5, 2.6, 3, 4, 5, 6].flatMap((k) => attempts.filter((x) => x.late === k))) {
       if (reach.get(`${a.r.method} ${a.r.url}`) === 'reached') continue;
       await tried(a.r, a.method, a.url, a.body, a.where);
     }

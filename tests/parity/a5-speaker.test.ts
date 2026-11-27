@@ -5,7 +5,8 @@ import { speakerContext } from '../../src/llm/anthropic.js';
 import { computeTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
 import type { Speaker } from '../../src/core/owner/assistants.js';
-import { renderAssistantsSection } from '../../src/api/web/assistants.js';
+import { renderNameIdentity } from '../../src/api/web/assistants.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { emptyState, CONVERSATION, PRODUCT } from './fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from '../pipeline/fakes.js';
 
@@ -123,9 +124,9 @@ describe('A5.3 · in the turn', () => {
 });
 
 describe('A5.3 · the owner can say how each one should sound', () => {
-  it('the team page offers the note, with what it does and does not change', () => {
-    const html = renderAssistantsSection([{ id: '11111111-1111-4111-8111-111111111111', name: 'Lily', role: 'sales',
-      note: 'Friendly & direct', channels: [], isDefault: true, voice: { tone: 'warm', length: 'normal', emoji: 'never' } }], 'en');
+  it('the Name and identity page offers the note, with what it does and does not change', () => {
+    const html = renderNameIdentity({ named: true, pending: 'Lily' }, [{ id: '11111111-1111-4111-8111-111111111111', name: 'Lily', role: 'sales',
+      note: 'Friendly & direct', channels: [], isDefault: true, voice: { tone: 'warm', length: 'normal', emoji: 'never' } }], 'en', null, OWNER_VIEW);
     expect(html).toContain('name="note"');
     expect(html).toContain('Friendly &amp; direct');
     expect(html).toMatch(/tone only/i);

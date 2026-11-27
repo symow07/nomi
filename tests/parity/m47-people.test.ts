@@ -219,7 +219,8 @@ describe('M47 · the page', () => {
       for (const a of OWNER_ONLY) {
         expect(visible, `${locale} ${a}`).toContain(t(locale, `people.ownerOnly.${a}` as MessageKey));
       }
-      expect(visible, locale).toContain(t(locale, 'people.ownerOnly.rest'));
+      // Rule 104 — "everything else, anyone here can do" is the table's first row: what everyone does.
+      expect(visible, locale).toContain(t(locale, 'ws.team.can.everyday'));
     }
   });
 

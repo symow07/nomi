@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Locale } from '../../src/core/owner/i18n/locale.js';
 import { readFileSync } from 'node:fs';
 import { currencyOfCountry, currencyForSignup, asksCurrency, currencyLabel, currencyInLine } from '../../src/core/owner/currencies.js';
 import { readTypedAmount } from '../../src/core/commerce/amount.js';
@@ -7,7 +8,9 @@ import { validatePriceRules } from '../../src/core/commerce/priceRules.js';
 import { validateSamplePolicy } from '../../src/core/commerce/samples.js';
 import { validateSignup } from '../../src/core/owner/signup.js';
 import { signupPage } from '../../src/api/web/layout.js';
-import { renderRate, renderProfile, type RateView } from '../../src/api/web/settings.js';
+import { renderCurrency, renderProfile, type RateView } from '../../src/api/web/settings.js';
+// Rule 104 — the rate is a section of the Currency page (it was a page of its own); the page is what is drawn here.
+const renderRate = (v: RateView, locale: Locale, _flash: null): string => renderCurrency(v, null, locale, null);
 import { renderAddForm } from '../../src/api/web/products.js';
 import { CURRENCIES, type Currency } from '../../src/core/types/money.js';
 import { OWNER_VIEW, type Viewer } from '../../src/core/conversation/people.js';
@@ -196,12 +199,17 @@ describe('CUR · the currency changes only until the first price, and only by th
     contactEmail: null, contactPhone: null, categories: [],
   } as unknown as Parameters<typeof renderProfile>[0];
   const STAFF: Viewer = { ...OWNER_VIEW, isOwner: false } as Viewer;
+  // Rule 104 — the selling currency has ONE home, the Currency page; the profile names it and links there.
   const draw = (fixed: boolean, viewer: Viewer = OWNER_VIEW) =>
-    renderProfile(profile, 'en', null, {}, {}, null, { currency: 'AED', fixed }, viewer);
+    renderCurrency({ current: null, previous: [], pair: null, currency: 'AED' }, { currency: 'AED', fixed }, 'en', null, viewer);
   it('before a price: the owner chooses from the eight', () => {
     const html = draw(false);
-    // Phase 3 — a row of the profile's one form, saved with it
+    // a row of the Currency page's one form, saved with it
+    expect(html).toContain('<form method="post" action="/app/settings/business/currency" class="set-form" data-save id="currency-form">');
     expect(html).toContain('<select id="pf-currency" name="currency">');
+    const onProfile = renderProfile(profile, 'en', null);
+    expect(onProfile).not.toContain('name="currency"');
+    expect(onProfile).toContain('href="/app/settings/business/currency"');
     expect(html).toContain('<option value="AED" selected>');
   });
   it('after a price: it is said, and fixed', () => {
@@ -217,6 +225,8 @@ describe('CUR · the currency changes only until the first price, and only by th
   it('saving it is the owner\'s, and the check and the write share one lock', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toMatch(/b\['currency'\] !== '' && personOf\(s\)\.isOwner\) \{\s+const c = await saveCurrency\(/);
+    // Rule 104 — the Currency page's Save is the owner's before anything is read or written.
+    expect(app).toMatch(/app\.post\(CURRENCY_PAGE, async \(req, reply\) => \{\s+const s = await ownerOnly\(req, reply, 'price_rules', CURRENCY_PAGE\);[\s\S]{0,700}const c = await saveCurrency\(/);
     const settings = readFileSync(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
     expect(settings).toMatch(/for update[\s\S]{0,300}hasPrices\(tx, bid\.value\)[\s\S]{0,200}update businesses set currency/);
   });

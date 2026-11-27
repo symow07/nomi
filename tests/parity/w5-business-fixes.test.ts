@@ -15,6 +15,10 @@ import { CATALOGUE_QUESTIONS, type SellingState } from '../../src/core/owner/how
 import { profileOf } from '../../src/core/owner/sellingStyle.js';
 import { BACK } from '../../src/api/web/icons.js';
 import { moneyOf } from '../../src/core/types/money.js';
+import { renderNameIdentity } from '../../src/api/web/assistants.js';
+import { renderHelp } from '../../src/api/web/helpPanel.js';
+import { DEFAULT_VOICE, type Assistant } from '../../src/core/owner/assistants.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 
 /**
  * THE WARMTH RUN, phase 9 — the fix wave, section 7 (My business, the
@@ -65,8 +69,10 @@ describe('w4-business-assistant-02 · the waiting colour is for customers who wa
       expect(waiting, l).toContain('sr-value warn');
       // the assistant: a name not confirmed is a setting; every kind of reply is a standing rule
       const e: EmployeeProfile = { ...ASSISTANT, assistantNamed: false };
+      // (rule 104: the kinds of reply are a section of Reply permissions, the same page)
       expect(inScope(() => renderEmployee(e, l, null))).not.toContain('sr-value warn');
-      expect(inScope(() => renderEmployeeScreen('replies', e, l, null))).not.toContain('class="sig');
+      expect(inScope(() => renderEmployee(e, l, null))).not.toContain('class="sig');
+      expect(inScope(() => renderEmployee(e, l, null))).not.toMatch(/class="pill[^"]*\bwarn\b/);
     });
   }
 });
@@ -193,16 +199,27 @@ const ASSISTANT: EmployeeProfile = {
 const QUIET: HerContext = { taughtRecently: 0, corrected: 0, handled: 3, draftsPrepared: 1, neededYou: 0, gaps: [] };
 const lily = <T>(fn: () => T): T => withAssistantName('Lily', fn);
 
-describe('V1-420 · the Name screen shows the name that waits, and confirms it there', () => {
+// Rule 104 — Settings › Assistant › Name and identity. Confirming is its own act (a decision, never a field): the name
+// that waits is shown beside it and is what the act confirms; the name itself is a FIELD of the page's one form.
+describe('V1-420 · the Name page shows the name that waits, and confirms it there', () => {
+  const mona: Assistant = { id: '00000000-0000-4000-8000-0000000000aa', name: 'Mona', role: 'sales', note: null, channels: [], isDefault: true, voice: DEFAULT_VOICE };
   for (const l of LOCALES) {
     it(`${l}`, () => {
-      const html = inScope(() => renderEmployeeScreen('name', { ...ASSISTANT, assistantNamed: false }, l, null));
-      expect(html).toContain('<p class="emp-called"><bdi>Mona</bdi></p>');
-      expect(html).toContain('<input type="text" name="name" maxlength="40" required value="Mona"');
-      expect(html).toContain('<input type="hidden" name="from" value="employee" />');
-      // what it does, and since when — not a line saying every reply waits beside "answers your customers"
+      const html = inScope(() => renderNameIdentity({ named: false, pending: 'Mona' }, [mona], l, null, OWNER_VIEW));
+      const note = html.slice(html.indexOf('<div class="set-note" id="name">'), html.indexOf('</div>', html.indexOf('<div class="set-note" id="name">')));
+      expect(note).toContain('<b class="as-said"><bdi>Mona</bdi></b>');
+      expect(note).toContain(esc(t(l, 'assistants.unconfirmed')));
+      expect(note).toContain('<form method="post" action="/app/onboarding/assistant-name" class="set-act">');
+      expect(note).toContain('<input type="hidden" name="name" value="Mona" />');
+      expect(note).toContain('<input type="hidden" name="from" value="employee" />');
+      // the name is changed in the page's form, which the one Save sends
+      expect(html).toMatch(/<form method="post" action="\/app\/settings\/people\/assistants\/[^"]+" class="set-form" data-save[^>]*>[\s\S]*?<input id="as-name" name="name" required maxlength="\d+" value="Mona" \/>/);
+      // what it does — not a line saying every reply waits beside "answers your customers"
       expect(html).not.toContain(esc(t(l, 'employee.stage.probation')));
-      expect(html).toContain(esc(t(l, 'employee.role.reception')));
+      const staff = inScope(() => renderNameIdentity({ named: false, pending: 'Mona' }, [mona], l, null, { isOwner: false }));
+      expect(staff).toContain('<p class="emp-called"><bdi>Mona</bdi></p>');
+      expect(staff).toContain(esc(t(l, 'employee.role.reception')));
+      expect(staff).not.toContain('<form');
     });
   }
 });
@@ -222,13 +239,15 @@ describe('V1-423 · what customers asked, and what the assistant cannot answer y
 describe('w4-business-assistant-29 · each row says its own thing', () => {
   for (const l of LOCALES) {
     it(`${l}`, () => {
-      const html = lily(() => renderEmployee({ ...ASSISTANT, canDo: [], capabilities: [{ capability: 'greet', mode: 'draft', promotable: false }] }, l, null, QUIET));
-      const line = (href: string) => {
-        const row = new RegExp(`href="${href}">[\\s\\S]*?</a>`).exec(html)?.[0] ?? '';
-        return /<span class="sr-(?:desc|value)[^>]*>([\s\S]*?)<\/span>/.exec(row.replace(/<span class="sr-label">[^<]*<\/span>/, ''))?.[1] ?? '';
-      };
-      expect(line('/app/settings/assistant#reply-types')).not.toBe(line('/app/settings/assistant#progress'));
-      expect(line('/app/settings/assistant#reply-types')).not.toBe('');
+      // Rule 104 — the two rows are two parts of one page: the kinds, each with its own state; and what comes next,
+      // one line. Neither repeats the other.
+      const html = lily(() => renderEmployee({ ...ASSISTANT, canDo: [], capabilities: [{ capability: 'greet', mode: 'draft', promotable: false }] }, l, null));
+      const progress = /<p class="set-help" id="progress">([\s\S]*?)<\/p>/.exec(html)?.[1] ?? '';
+      const kinds = html.slice(html.indexOf('id="reply-types"'), html.indexOf('id="progress"'));
+      expect(progress).not.toBe('');
+      expect(kinds).toContain(`<span class="pill long">${esc(t(l, 'her.handles.waits'))}</span>`);
+      expect(kinds).not.toContain(progress);
+      expect(html.split(progress).length - 1).toBe(1);
     });
   }
 });
@@ -256,11 +275,11 @@ describe('w4-business-assistant-31 · the assistant\'s "can talk about" rows are
 describe('w4-business-assistant-32, -33 · the screens a level down speak from where they are', () => {
   for (const l of LOCALES) {
     it(`${l}`, () => {
-      const oneKind = lily(() => renderEmployeeScreen('one-kind', { ...ASSISTANT, capabilities: [{ capability: 'greet', mode: 'auto', promotable: false }] }, l, null));
-      expect(oneKind).toContain(esc(lily(() => t(l, 'employee.actions.more'))));
-      // the three levels are on the assistant's page, not "above" on this one
-      expect(lily(() => t(l, 'employee.actions.more'))).toContain('Lily');
-      expect(t(l, 'employee.actions.more')).not.toMatch(/levels above|上面的档位|المستويات أعلاه|niveles de arriba|ci-dessus/);
+      // Rule 104 — a kind not yet earned says so in its own row, where its button would be; nothing points "above".
+      const kinds = lily(() => renderEmployee({ ...ASSISTANT, capabilities: [{ capability: 'greet', mode: 'auto', promotable: false }, { capability: 'quote', mode: 'draft', promotable: false }] }, l, null));
+      expect(kinds).toContain(`<span class="as-lock">${esc(t(l, 'as.perm.earned'))}</span>`);
+      for (const k of ['as.perm.earned', 'as.perm.locked', 'employee.actions.note'] as const)
+        expect(t(l, k), k).not.toMatch(/levels above|上面的档位|المستويات أعلاه|niveles de arriba|ci-dessus/);
       // "What {name} knows" is the landing's row; the screen does not repeat it as a heading
       const learning = lily(() => renderEmployeeScreen('learning', ASSISTANT, l, null, QUIET));
       expect(learning).not.toContain(`<h2>${esc(lily(() => t(l, 'her.knows.title')))}</h2>`);
@@ -289,7 +308,8 @@ it('no software words or raw keys on any of the new screens', () => {
   for (const l of LOCALES) {
     const all = [
       ...(['whatsapp', 'meta', 'email', 'alerts'] as const).map((s) => inScope(() => renderChannelScreen(s, BARE, l, null))),
-      screen('channels', SET_UP, l), screen('ready', SET_UP, l), lily(() => renderEmployeeScreen('alone', ASSISTANT, l, null)),
+      screen('channels', SET_UP, l), screen('ready', SET_UP, l), lily(() => renderEmployee(ASSISTANT, l, null)),
+      lily(() => renderHelp(l, { from: '/app/settings/assistant', role: 'owner', canAsk: false, canWrite: false })),
     ].join('');
     expect(all, l).not.toMatch(/\b(her|reach|channels|golive|factory|autonomy)\.[a-z]+\.[a-zA-Z.]+/);
   }

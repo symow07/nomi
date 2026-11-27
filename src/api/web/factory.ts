@@ -26,7 +26,7 @@ import { tenantRepos } from '../../db/repos.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, tn, assistantName } from './say.js';
+import { t, tn, assistantName, webChatConnectable, telegramConnectable, tiktokConnectable } from './say.js';
 
 import { esc, deeper, back, signalMark, todoMark, ASSISTANT_HOME } from './layout.js';
 import { shape } from './marks.js';
@@ -55,7 +55,8 @@ import { loadKillSwitches } from '../../db/opsFlags.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
 import { loadPriceRules, type PriceRulesView } from './priceRules.js';
-import { certRows } from './knowledge.js';
+import { certTable } from './knowledge.js';
+import { pageHead, setSection } from './settingsPage.js';
 import { OWNER_VIEW, actorName, type Person, type Viewer } from '../../core/conversation/people.js';
 import { loadPeople } from './people.js';
 import {
@@ -808,13 +809,13 @@ const head = (locale: Locale, title: string, flash: Flash | null, to: { href: st
 export function renderBusinessScreen(
   screen: BusinessScreen, f: FactoryView, locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
   /** KS6 — the operator's approval before the first connection, already rendered: first on the channels' home. */
-  extras: { readonly approvalHtml?: string } = {},
+  extras: { readonly approvalHtml?: string; readonly technicalHtml?: string; /** Rule 104 — Words to avoid, a section of Promises and words, already rendered (settings.ts `forbiddenSection`). */ readonly wordsHtml?: string } = {},
 ): string {
   switch (screen) {
-    case 'channels': return channelsScreen(f, locale, flash, viewer, extras.approvalHtml ?? '');
+    case 'channels': return channelsScreen(f, locale, flash, viewer, extras.approvalHtml ?? '', extras.technicalHtml ?? '');
     case 'allowlist': return allowlistScreen(f, locale, flash, viewer);
     case 'ready': return readyScreen(f, locale, flash, viewer);
-    case 'promises': return promisesScreen(f, locale, flash, viewer);
+    case 'promises': return promisesScreen(f, locale, flash, viewer, extras.wordsHtml ?? '');
     case 'how': return howScreen(f, locale, flash, viewer);
   }
 }
@@ -829,7 +830,7 @@ export function renderBusinessScreen(
  * and what is not available yet. The approval the first connection waits for
  * comes first, because every Connect waits on it.
  */
-function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer, approvalHtml: string): string {
+function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer, approvalHtml: string, technicalHtml: string): string {
   const name = assistantName(locale);
   const s = standing(f);
   const c = f.connection.channel;
@@ -912,8 +913,13 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
 
   // S7 — the chat page and Telegram: each its own row and screen, connected or not, or not offered here.
   // UI Block 7 (F34, the F03 remainder) — each with its own shape, so every row's name starts at one edge.
+  // Rule 104 (the owner's condition 3) — a channel this installation cannot connect is a row that says so and opens
+  // nothing: no door to a page with nothing on it. The day it can be connected here (or is), the row is its door again.
+  const notHereRow = (screen: 'chat' | 'telegram' | 'tiktok', iconId: 'ch-chat' | 'ch-telegram' | 'ch-tiktok') =>
+    menuRow({ href: null, icon: iconId, label: channelScreenTitle(locale, screen), value: t(locale, 'connect.state.notHere') });
   const own = (ch: 'web_chat' | 'telegram', screen: 'chat' | 'telegram') => {
     const o = s.others.find((x) => x.channel === ch);
+    if (!o && !(ch === 'web_chat' ? webChatConnectable() : telegramConnectable())) return notHereRow(screen, screen === 'chat' ? 'ch-chat' : 'ch-telegram');
     const value = t(locale, !o ? 'connect.state.notHere' : o.state === 'connected' ? 'connect.state.connected' : 'connect.state.notConnected');
     return menuRow({ href: channelScreenHref(screen), icon: screen === 'chat' ? 'ch-chat' : 'ch-telegram', label: channelScreenTitle(locale, screen),
       value, tone: o?.state === 'connected' ? 'ok' : undefined,
@@ -923,7 +929,7 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const tk = s.others.find((x) => x.channel === 'tiktok');
   const tkValue = t(locale, !tk ? 'connect.state.notHere' : tk.state === 'connected' ? 'connect.state.connected'
     : tk.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected');
-  const tiktokRow = menuRow({ href: channelScreenHref('tiktok'), icon: 'ch-tiktok', label: channelScreenTitle(locale, 'tiktok'),
+  const tiktokRow = !tk && !tiktokConnectable() ? notHereRow('tiktok', 'ch-tiktok') : menuRow({ href: channelScreenHref('tiktok'), icon: 'ch-tiktok', label: channelScreenTitle(locale, 'tiktok'),
     ...(tk?.as ? { descHtml: `<bdi>${esc(tk.as)}</bdi>` } : {}),
     value: tkValue,
     tone: tk?.state === 'connected' ? 'ok' : tk?.state === 'attention' ? 'warn' : undefined,
@@ -947,12 +953,16 @@ function channelsScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
   const alerts = menuGroup('alerts', null, [menuRow({ href: channelScreenHref('alerts'), icon: 'alerts', label: channelScreenTitle(locale, 'alerts'),
     value: f.connection.ownerPhone ?? t(locale, 'setup.value.notSetUp') })]);
 
-  return `${head(locale, t(locale, 'factory.reach.title'), flash)}
+  // Rule 104 — the template: the title is the menu's label, one line under it, then ONE table of every channel.
+  // Technical details (read-only, the installation's own workspace) are the page's last section, folded.
+  return `${pageHead(t(locale, 'side.channelsAll'), t(locale, 'set.channels.lede'))}
+    ${flashBanner(flash)}
     ${approvalHtml}
     ${menuGroup('channels', null, rows)}
     ${allowlist}
     ${alerts}
-    ${channelsFoot(locale)}`;
+    ${channelsFoot(locale)}
+    ${technicalHtml}`;
 }
 
 /**
@@ -1166,7 +1176,7 @@ function readyScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer
  * that says it. What may be promised about returns, delivery and what is sold
  * is answered in How you sell, and the page says so with its door.
  */
-function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
+function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW, wordsHtml = ''): string {
   const name = assistantName(locale);
   // Only what the guard actually enforces, and only in the shape the owner's
   // own data takes: one floor, or a range across her products.
@@ -1196,19 +1206,17 @@ function promisesScreen(f: FactoryView, locale: Locale, flash: Flash | null, vie
       : null,
   ].filter((x): x is string => x !== null);
 
-  return `${head(locale, t(locale, 'factory.promise.title'), flash)}
-    <section class="fblock" id="certs" aria-labelledby="certs-h">
-      <h2 id="certs-h">${esc(t(locale, 'knowledge.cert.title'))}</h2>
-      <p class="fdesc">${esc(t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }))}</p>
-      ${certRows(locale, f.promises.certs, f.products.total, '', true)}
-      <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>
-    </section>
-    <section class="fblock">
-      ${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      <p class="fdesc">${esc(t(locale, 'factory.promise.elsewhere', { name }))}</p>
+  // The settings overhaul (rule 104) — the template: the title is the menu's label, one line under it; the
+  // certifications are a table whose switches act at once, each asking first; the rule that anything not turned on
+  // is never said stays ON the page, beside them; the price promises are read-only lines; Words to avoid follows.
+  return `${pageHead(t(locale, 'settingsArea.promises'), t(locale, 'as.promises.lede', { name }))}${flashBanner(flash)}
+    ${setSection({ id: 'certs', title: t(locale, 'knowledge.cert.title'), help: t(locale, 'knowledge.cert.scopeAll', { n: f.products.total }),
+      rows: `${certTable(locale, f.promises.certs, f.products.total)}<p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>` })}
+    ${setSection({ id: 'prices', title: t(locale, 'factory.promise.title'), rows: `${priceRules.length ? `<ul class="frules">${priceRules.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      <p class="set-help">${esc(t(locale, 'factory.promise.elsewhere', { name }))}</p>
       <div class="doors">${deeper(BUSINESS_SCREEN_PATH.how, t(locale, 'factory.sellhow.title'))}
-        ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}</div>
-    </section>`;
+        ${deeper('/app/knowledge', t(locale, 'factory.promise.more', { name }))}</div>` })}
+    ${wordsHtml}`;
 }
 
 /**

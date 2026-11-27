@@ -11,6 +11,7 @@ import { shell, loginPage, signupPage, verifyPage, errorPage, esc, stylesheetAt 
 import { withWorkspace, withAssistantName, type RequestScope } from '../../src/api/web/say.js';
 import { flashBanner } from '../../src/api/web/flash.js';
 import type { EmployeeProfile } from '../../src/api/web/employee.js';
+import { rowAction, rowSwitch } from '../../src/api/web/settingsPage.js';
 import { everyScreen } from './employee-screens.js';
 import {
   renderProductList, renderProductDetail, type ProductListItem, type ProductDetail, type ProductEditField, type ProductEditError,
@@ -493,8 +494,51 @@ describe('CC-29 · everything that takes something away asks first, the one way 
   /** The button asks, and asks this question. */
   const asks = (html: string, question: string): boolean =>
     new RegExp(`${ASK.replace(/[()[\].]/g, '\\$&')}\\s+data-confirm="${esc(question).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`).test(html);
-  const forms = webFiles.flatMap((f) =>
-    [...read(f).matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)].map((m) => ({ file: f, action: m[1]!, text: m[0] })));
+  /**
+   * Rule 104 (the settings overhaul) — a settings page draws a row's act through the one template (settingsPage.ts):
+   * `rowAction({ action, confirm })` and the danger zone's rows (`{ title, what, action, verb, confirm }`). Those are
+   * forms too, and the template puts the question on the button exactly when `confirm` is given (`asks`, below), so
+   * each is read here as the form it draws: asking, with its question, or not asking.
+   */
+  const asForm = (file: string, action: string, call: string) => ({ file, action,
+    text: /\bconfirm:/.test(call) ? `${ASK} data-confirm="\${${call.slice(call.indexOf('confirm:')).replace(/"/g, '\'')}}"` : call });
+  const templated = (f: string) => { const src = read(f); return [
+    ...[...src.matchAll(/\btitle: [^\n]*\n?\s*action: `([^`]+)`, verb: ([^\n]*\n[^\n]*)/g)].map((m) => asForm(f, m[1]!, m[2]!)),
+  ]; };
+  // rowAction / rowSwitch calls, read as the form each writes (its address, and the ask with its question).
+  const rowCalls = (src: string): { action: string; text: string }[] => {
+    const out: { action: string; text: string }[] = [];
+    for (const m of src.matchAll(/\brow(?:Action|Switch)\(/g)) {
+      let depth = 0; let end = m.index!;
+      for (let i = m.index! + m[0].length - 1; i < src.length; i++) {
+        if (src[i] === '(') depth++;
+        else if (src[i] === ')' && --depth === 0) { end = i; break; }
+      }
+      const body = src.slice(m.index!, end + 1);
+      const a = /\baction:\s*(?:`([^`]+)`|'([^']+)')/.exec(body);
+      if (!a) continue;                                   // the definition itself, or an address that is a variable
+      const q = /\bconfirm:\s*([^"]+)$/.exec(body)?.[1];
+      out.push({ action: a[1] ?? a[2]!, text: q ? `${body} ${ASK} data-confirm="\${${q}}"` : body });
+    }
+    return out;
+  };
+  it('a row action given a question writes the one ask (settingsPage.ts)', () => {
+    expect(rowAction({ action: '/x', label: 'Remove', confirm: 'Remove it?' })).toContain(`${ASK} data-confirm="Remove it?"`);
+    expect(rowAction({ action: '/x', label: 'Remove' })).not.toContain('confirm');
+    expect(rowSwitch('en', { action: '/x', on: true, label: 'It', confirm: 'Turn it off?' })).toContain(`${ASK} data-confirm="Turn it off?"`);
+    expect(rowCalls("rowAction({ action: `/a/${id}/remove`, label: t(l, 'x.y'), confirm: t(l, 'x.ask', { n }) })"))
+      .toEqual([expect.objectContaining({ action: '/a/${id}/remove', text: expect.stringContaining(`${ASK} data-confirm="\${t(l, 'x.ask', { n }) })}"`) })]);
+  });
+  const forms = webFiles.flatMap((f) => [
+    ...[...read(f).matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)].map((m) => ({ file: f, action: m[1]!, text: m[0] })),
+    ...templated(f),
+    ...rowCalls(read(f)).map((c) => ({ file: f, ...c })),
+  ]);
+  it('rule 104 · the template asks exactly when a row is given a question', () => {
+    const settingsPage = read(`${WEB}/settingsPage.ts`);
+    expect(settingsPage).toContain('confirm ? ` onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(confirm)}"` : \'\'');
+    expect(settingsPage).toMatch(/const dangerRow = [\s\S]{0,400}rowAction\(\{ action: r\.action, label: r\.verb, confirm: r\.confirm, danger: true/);
+  });
 
   /**
    * Every one-tap action that removes, archives, disconnects, stops, revokes,
@@ -503,8 +547,8 @@ describe('CC-29 · everything that takes something away asks first, the one way 
    * on 2026-09-28 found nineteen, seven of which already asked.
    */
   const MUST_ASK: readonly [file: string, action: RegExp][] = [
-    ['employee.ts', /\/capability\/\$\{[^}]+\}\/revoke$/],
-    ['employee.ts', /\/capability\/\$\{[^}]+\}\/promote$/],
+    // Rule 104 — one row action draws both ("Wait for my OK" and "Send without me"): the verb is the address's end.
+    ['employee.ts', /\/capability\/\$\{[^}]+\}\/\$\{verb\}$/],
     ['knowledge.ts', /^\/app\/knowledge\/cert$/],
     ['channels.ts', /^\/app\/connect\/meta\/disconnect$/],
     ['channels.ts', /^\/app\/channels\/outreach$/],
@@ -524,6 +568,11 @@ describe('CC-29 · everything that takes something away asks first, the one way 
     ['conversations.ts', /\/deletion\/dismiss$/],
     ['inbox.ts', /\/proof\/revoke$/],
     ['people.ts', /\/people\/\$\{[^}]+\}\/remove$/],
+    // Rule 104 — a closure's Remove is a row action that asks first (the owner's brief for Hours and closures); the
+    // notice that follows still carries Undo (below).
+    ['settings.ts', /\/closures\/\$\{[^}]+\}\/remove$/],
+    // Rule 104 — deleting a team member's Ask Nomi history, in Data and privacy's danger zone.
+    ['advisorHistory.ts', /\/team\/\$\{[^}]+\}\/delete$/],
     ['assistants.ts', /\/assistants\/\$\{[^}]+\}\/archive$/],
     // P6 — Practice's Start over erases (0089).
     ['sandbox.ts', /^\/app\/sandbox\/reset$/],
@@ -556,7 +605,6 @@ describe('CC-29 · everything that takes something away asks first, the one way 
    */
   const UNDONE: readonly [file: string, action: RegExp, restore: string][] = [
     ['settings.ts', /\/forbidden\/\$\{[^}]+\}\/remove$/, '/app/settings/forbidden/${id}/restore'],
-    ['settings.ts', /\/closures\/\$\{[^}]+\}\/remove$/, '/app/settings/closures/${id}/restore'],
     ['knowledge.ts', /^\/app\/knowledge\/archive$/, '/app/knowledge/${id}/restore'],
     ['calendar.ts', /\/calendar\/entries\/\$\{[^}]+\}\/remove$/, '/app/calendar/entries/${id}/restore'],
   ];
@@ -577,6 +625,12 @@ describe('CC-29 · everything that takes something away asks first, the one way 
       expect(app, restore).toContain(`\`${restore}`);                       // the notice carries it
       expect(app, restore).toContain(`app.post('${restore.replace('${id}', ':id')}'`);   // and it is a route
     }
+  });
+
+  it('rule 104 · a closure removed asks first AND its notice still offers the way back', () => {
+    const app = read(`${WEB}/app.ts`);
+    expect(app).toContain('`/app/settings/closures/${id}/restore');
+    expect(app).toContain("app.post('/app/settings/closures/:id/restore'");
   });
 
   it('one idiom: every confirm is this one — no form-level handler, no question written into the script', () => {

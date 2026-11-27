@@ -3,7 +3,7 @@ import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc, wordsHtml } from './layout.js';
 import { GO, solarSvg } from './icons.js';
 import { allChannelsSvg, brandSvg, type BrandLogo } from './brandLogos.js';
-import { t, booksShown, viewerRole, outreachShown, exportSettingsShown, adsShown } from './say.js';
+import { t, booksShown, viewerRole, outreachShown, exportSettingsShown, adsShown, webChatConnectable, telegramConnectable, tiktokConnectable } from './say.js';
 import { settingsHref } from './settingsNavigation.js';
 
 /**
@@ -12,9 +12,15 @@ import { settingsHref } from './settingsNavigation.js';
  * tab, in Settings or behind one link. This file is that map: each area's groups and items, who sees each one, and
  * which addresses light it. The URLs of pages did not move; an item names the pages it owns.
  *
- * The owner's choices, recorded: Reports is its own area and the books' reports appear there too; the assistant's
- * settings live under Assistant and the books' settings under Books, so Settings keeps only the workspace; payment
- * links sit under Products.
+ * The owner's choices, recorded: Reports is its own area and the books' reports appear there too; payment links sit
+ * under Products.
+ *
+ * THE SETTINGS OVERHAUL (2026-11-27, the owner's decision; rule 104) reverses one choice of the 25th: EVERY setting
+ * lives in the Settings area, in five groups — Workspace, Connections, Assistant, Books, You — 23 pages in all. The
+ * Assistant and Books areas keep their work pages and ONE "Settings" shortcut each; Products keeps a shortcut to
+ * Shopify. A shortcut (`shortcut`) is a second door: it lights nothing in the area that lists it, because the page it
+ * opens belongs to Settings. Web chat, Telegram and TikTok are menu items only where this installation can connect
+ * them (the owner's condition 3); elsewhere each is a row on Channels.
  */
 export type AreaId = 'home' | 'inbox' | 'customers' | 'products' | 'assistant' | 'books' | 'reports' | 'ask' | 'settings';
 
@@ -26,8 +32,16 @@ type Item = {
   /** Lit only on its own address, never on the pages under it. */
   readonly exact?: boolean;
   readonly show?: () => boolean;
+  /** A second door to a page that belongs to another area (rule 104): listed here, never "here". */
+  readonly shortcut?: boolean;
 };
-type Group = { readonly label?: MessageKey; readonly items: readonly Item[]; readonly show?: () => boolean };
+type Group = {
+  readonly label?: MessageKey; readonly items: readonly Item[]; readonly show?: () => boolean;
+  /** The group's anchor on the Settings menu page. */
+  readonly id?: string;
+  /** Drawn with no heading of its own (a lone shortcut at the foot of an area). */
+  readonly bare?: boolean;
+};
 
 const owner = (): boolean => viewerRole() === 'owner';
 const notAccountant = (): boolean => viewerRole() !== 'accountant';
@@ -70,7 +84,8 @@ export const AREAS: Readonly<Record<AreaId, readonly Group[]>> = {
     ] },
     { label: 'side.sell', items: [
       { label: 'waCatalog.title', href: '/app/products/whatsapp' },
-      { label: 'shopifyOrders.nav', href: '/app/settings/business/shopify', show: owner },
+      // Rule 104: Shopify is a connection, so its page is Settings › Connections; this is the shortcut left here.
+      { label: 'shopifyOrders.nav', href: '/app/settings/business/shopify', show: owner, shortcut: true },
       { label: 'paymentLinks.title', href: '/app/payments/stripe', show: owner },
     ] },
   ],
@@ -84,17 +99,14 @@ export const AREAS: Readonly<Record<AreaId, readonly Group[]>> = {
       { label: 'assistantArea.practice', href: '/app/assistant/practice', also: ['/app/sandbox'] },
       { label: 'assistantArea.review', href: '/app/assistant/review', also: [`${ASSISTANT_SETTINGS}/checks`] },
     ] },
+    // Rule 104: Going live is a checklist, not a setting, so it stays here; every setting is in Settings.
     { label: 'side.goLive', items: [
-      { label: 'settingsArea.permissions', href: ASSISTANT_SETTINGS, also: [`${ASSISTANT_SETTINGS}/alone`] },
-      { label: 'settingsArea.identity', href: `${ASSISTANT_SETTINGS}/name` },
-      { label: 'settingsArea.promises', href: `${ASSISTANT_SETTINGS}/promises` },
       { label: 'settingsArea.ready', href: `${ASSISTANT_SETTINGS}/ready` },
-      { label: 'settingsArea.words', href: `${ASSISTANT_SETTINGS}/words` },
-      { label: 'settingsArea.historyPolicy', href: `${ASSISTANT_SETTINGS}/history-policy`, show: owner },
     ] },
     { label: 'side.watch', items: [
       { label: 'assistantArea.activity', href: '/app/assistant/activity', also: [`${ASSISTANT_SETTINGS}/history`] },
     ] },
+    { bare: true, show: notAccountant, items: [{ label: 'nav.settings', href: ASSISTANT_SETTINGS, shortcut: true }] },
   ],
   books: [
     { items: [
@@ -104,18 +116,13 @@ export const AREAS: Readonly<Record<AreaId, readonly Group[]>> = {
       { label: 'booksArea.bank', href: '/app/books/bank' },
       { label: 'booksArea.reports', href: '/app/books/reports', also: ['/app/books/fec'] },
       { label: 'booksArea.yearEnd', href: '/app/books/year-end', also: ['/app/books/closing'] },
-      { label: 'booksArea.advanced', href: '/app/books/advanced', also: ['/app/books/entries', '/app/books/trial-balance'] },
     ] },
-    { label: 'side.setup', show: owner, items: [
-      { label: 'booksArea.setup', href: BOOKS_SETTINGS },
-      { label: 'books.country.nav', href: `${BOOKS_SETTINGS}/country` },
-      { label: 'booksArea.opening', href: `${BOOKS_SETTINGS}/starting-balances` },
-      { label: 'booksArea.accounts', href: `${BOOKS_SETTINGS}/accounts` },
-      { label: 'booksArea.taxDetails', href: `${BOOKS_SETTINGS}/tax` },
-      { label: 'invoice.settings.title', href: `${BOOKS_SETTINGS}/invoices-out` },
-      { label: 'booksArea.connections', href: `${BOOKS_SETTINGS}/connections` },
-      { label: 'booksArea.fields', href: `${BOOKS_SETTINGS}/fields` },
+    // Rule 104: the "Advanced" page was two links; they are items now. The pages live under /app/books/advanced.
+    { label: 'side.forAccountant', items: [
+      { label: 'books.entries.title', href: '/app/books/advanced/entries', also: ['/app/books/entries', '/app/books/advanced'] },
+      { label: 'books.trial.title', href: '/app/books/advanced/trial-balance', also: ['/app/books/trial-balance'] },
     ] },
+    { bare: true, show: owner, items: [{ label: 'nav.settings', href: `${BOOKS_SETTINGS}/country`, shortcut: true }] },
   ],
   reports: [
     { items: [
@@ -132,33 +139,46 @@ export const AREAS: Readonly<Record<AreaId, readonly Group[]>> = {
   ],
   ask: [],
   settings: [
-    { label: 'side.workspace', show: notAccountant, items: [
-      { label: 'settingsArea.profile', href: '/app/settings/business/profile', also: ['/app/settings/business'] },
-      { label: 'settingsArea.selling', href: '/app/settings/business/selling' },
+    // A page's menu label and its title are ONE key wherever the page already had a title in every language, so the
+    // two cannot drift apart (tests/parity/settings-safety-lines.test.ts holds them equal, word for word).
+    { id: 'workspace', label: 'side.workspace', show: notAccountant, items: [
+      { label: 'settingsArea.profile', href: '/app/settings/business/profile' },
+      // Terms and samples are sections of How you sell (rule 104); their addresses light it.
+      { label: 'settingsArea.selling', href: '/app/settings/business/selling', also: ['/app/settings/business/terms', '/app/settings/business/samples'] },
       { label: 'settingsArea.hours', href: '/app/settings/business/hours' },
       { label: 'settingsArea.currency', href: '/app/settings/business/currency' },
-      { label: 'settingsArea.terms', href: '/app/settings/business/terms', show: exportSettingsShown },
-      { label: 'settingsArea.samples', href: '/app/settings/business/samples', show: exportSettingsShown },
+      { label: 'settingsArea.team', href: '/app/settings/team', show: owner },
+      { label: 'settingsArea.billing', href: '/app/settings/billing', show: owner },
+      { label: 'settingsArea.data', href: '/app/settings/business/data', also: [`${ASSISTANT_SETTINGS}/history-policy`], show: owner },
     ] },
-    { label: 'settingsArea.channels', show: notAccountant, items: [
-      { label: 'side.channelsAll', href: '/app/settings/channels', exact: true, also: ['/app/settings/channels/technical'] },
-      { label: 'side.ch.whatsapp', href: '/app/settings/channels/whatsapp' },
-      { label: 'side.ch.meta', href: '/app/settings/channels/meta' },
-      { label: 'side.ch.email', href: '/app/settings/channels/email' },
-      { label: 'side.ch.chat', href: '/app/settings/channels/chat' },
-      { label: 'reach.channel.telegram', href: '/app/settings/channels/telegram' },
-      { label: 'reach.channel.tiktok', href: '/app/settings/channels/tiktok' },
+    { id: 'connections', label: 'side.connections', show: notAccountant, items: [
+      { label: 'side.channelsAll', href: '/app/settings/channels', exact: true,
+        also: ['/app/settings/channels/technical', '/app/settings/channels/chat', '/app/settings/channels/telegram', '/app/settings/channels/tiktok'] },
+      { label: 'reach.channel.whatsapp', href: '/app/settings/channels/whatsapp' },
+      { label: 'meta.panel.title', href: '/app/settings/channels/meta' },
+      { label: 'reach.channel.email', href: '/app/settings/channels/email' },
+      // The owner's condition 3: a page and a menu item only while the channel can be connected here.
+      { label: 'reach.channel.web_chat', href: '/app/settings/channels/chat', show: webChatConnectable },
+      { label: 'reach.channel.telegram', href: '/app/settings/channels/telegram', show: telegramConnectable },
+      { label: 'reach.channel.tiktok', href: '/app/settings/channels/tiktok', show: tiktokConnectable },
+      { label: 'side.shopify', href: '/app/settings/business/shopify', show: owner },
     ] },
-    { label: 'side.teamBilling', show: owner, items: [
-      { label: 'settingsArea.team', href: '/app/settings/team' },
-      { label: 'settingsArea.billing', href: '/app/settings/billing' },
+    { id: 'assistant', label: 'settingsArea.assistant', show: notAccountant, items: [
+      { label: 'settingsArea.permissions', href: ASSISTANT_SETTINGS, also: [`${ASSISTANT_SETTINGS}/alone`] },
+      { label: 'settingsArea.identity', href: `${ASSISTANT_SETTINGS}/name` },
+      { label: 'settingsArea.promises', href: `${ASSISTANT_SETTINGS}/promises`, also: [`${ASSISTANT_SETTINGS}/words`] },
     ] },
-    { label: 'side.you', items: [
-      { label: 'settingsArea.data', href: '/app/settings/business/data', show: owner },
-      { label: 'settingsArea.account', href: '/app/settings/personal/account', also: ['/app/settings/personal'] },
-      { label: 'settingsArea.notifications', href: '/app/settings/personal/notifications', show: notAccountant },
-      { label: 'settingsArea.language', href: '/app/settings/personal/language' },
-      { label: 'settingsArea.history', href: '/app/settings/personal/advisor-history', show: notAccountant },
+    { id: 'books', label: 'settingsArea.books', show: () => owner() && booksShown(), items: [
+      { label: 'books.country.nav', href: `${BOOKS_SETTINGS}/country`, also: [`${BOOKS_SETTINGS}/tax`] },
+      { label: 'booksArea.opening', href: `${BOOKS_SETTINGS}/starting-balances` },
+      { label: 'booksArea.accounts', href: `${BOOKS_SETTINGS}/accounts` },
+      { label: 'side.booksInvoices', href: `${BOOKS_SETTINGS}/invoices-out` },
+      { label: 'booksArea.connections', href: `${BOOKS_SETTINGS}/connections` },
+      { label: 'books.fields.title', href: `${BOOKS_SETTINGS}/fields` },
+    ] },
+    { id: 'you', label: 'side.you', items: [
+      { label: 'settingsArea.account', href: '/app/settings/personal/account', also: ['/app/settings/personal/language'] },
+      { label: 'alerts.title', href: '/app/settings/personal/notifications', show: notAccountant },
     ] },
   ],
 };
@@ -186,13 +206,17 @@ export function currentItem(area: AreaId, path: string): Item | null {
   const query = params(path);
   let best: { score: number; item: Item } | null = null;
   for (const g of AREAS[area]) for (const item of g.items) {
-    if (item.href.includes('#')) continue;
+    // A shortcut's page belongs to another area. An item this viewer is not shown (a channel that cannot be connected
+    // here) is not "here" either: its page lights the item that owns the address instead (Channels).
+    if (item.href.includes('#') || item.shortcut || item.show?.() === false) continue;
     const want = params(item.href);
     if ([...want].some(([k, v]) => query.get(k) !== v)) continue;
     const bonus = [...want].length ? 1000 : 0;
-    for (const route of [base(item.href), ...(item.also ?? [])]) {
+    for (const [n, route] of [base(item.href), ...(item.also ?? [])].entries()) {
       const hit = url === route || (!item.exact && url.startsWith(`${route}/`));
-      if (hit && (best === null || route.length + bonus > best.score)) best = { score: route.length + bonus, item };
+      // The longest address wins; between two as long, the item whose own address it is, over one that merely owns it.
+      const score = route.length * 2 + (n === 0 ? 1 : 0) + bonus;
+      if (hit && (best === null || score > best.score)) best = { score, item };
     }
   }
   return best?.item ?? null;
@@ -224,25 +248,26 @@ const ITEM_ICON: Readonly<Record<string, Shape>> = {
   '/app/assistant': 'widget-2', '/app/assistant/knowledge': 'notebook-minimalistic', '/app/assistant/knowledge/procedures': 'checklist',
   '/app/assistant/practice': 'play-circle', '/app/assistant/review': 'check-circle', [ASSISTANT_SETTINGS]: 'tuning-2',
   [`${ASSISTANT_SETTINGS}/name`]: 'user-id', [`${ASSISTANT_SETTINGS}/promises`]: 'shield-check', [`${ASSISTANT_SETTINGS}/ready`]: 'power',
-  [`${ASSISTANT_SETTINGS}/words`]: 'forbidden-circle', [`${ASSISTANT_SETTINGS}/history-policy`]: 'history', '/app/assistant/activity': 'flag',
+  '/app/assistant/activity': 'flag',
   '/app/books': 'widget-2', '/app/books/invoices': 'hand-money', '/app/books/spending': 'banknote', '/app/books/bank': 'transfer-horizontal',
-  '/app/books/reports': 'chart-2', '/app/books/year-end': 'calendar-mark', '/app/books/advanced': 'settings',
-  [BOOKS_SETTINGS]: 'checklist', [`${BOOKS_SETTINGS}/country`]: 'global', [`${BOOKS_SETTINGS}/starting-balances`]: 'flag',
-  [`${BOOKS_SETTINGS}/accounts`]: 'folder', [`${BOOKS_SETTINGS}/tax`]: 'file-text', [`${BOOKS_SETTINGS}/invoices-out`]: 'letter',
+  '/app/books/reports': 'chart-2', '/app/books/year-end': 'calendar-mark',
+  '/app/books/advanced/entries': 'list', '/app/books/advanced/trial-balance': 'checklist', [`${BOOKS_SETTINGS}/country`]: 'global', [`${BOOKS_SETTINGS}/starting-balances`]: 'flag',
+  [`${BOOKS_SETTINGS}/accounts`]: 'folder', [`${BOOKS_SETTINGS}/invoices-out`]: 'letter',
   [`${BOOKS_SETTINGS}/connections`]: 'transfer-horizontal', [`${BOOKS_SETTINGS}/fields`]: 'tuning-2',
   '/app/results': 'chart-2', '/app/results?view=assistant': 'chat-round-dots', '/app/results?view=setup': 'checklist',
   '/app/results/month': 'letter', '/app/results#ad-spend': 'banknote',
   '/app/settings/business/profile': 'shop', '/app/settings/business/selling': 'hand-money', '/app/settings/business/hours': 'calendar-mark',
-  '/app/settings/business/currency': 'transfer-horizontal', '/app/settings/business/terms': 'file-text', '/app/settings/business/samples': 'gift',
+  '/app/settings/business/currency': 'transfer-horizontal',
   '/app/settings/channels': 'dialog', '/app/settings/channels/whatsapp': 'chat-round-line', '/app/settings/channels/meta': 'chat-square',
   '/app/settings/channels/email': 'letter', '/app/settings/channels/chat': 'chat-round-dots', '/app/settings/channels/telegram': 'send-square',
   '/app/settings/channels/tiktok': 'music-note', '/app/settings/team': 'users-group-two-rounded', '/app/settings/billing': 'card',
   '/app/settings/business/data': 'folder', '/app/settings/personal/account': 'key', '/app/settings/personal/notifications': 'bell',
-  '/app/settings/personal/language': 'global', '/app/settings/personal/advisor-history': 'history',
 };
 /** The books' reports, listed under Reports too: the same chart as under Books would read as a second copy. */
 const iconOf = (area: AreaId, item: Item): Shape =>
-  area === 'reports' && item.href === '/app/books/reports' ? 'notebook-minimalistic' : ITEM_ICON[item.href] ?? 'list';
+  area === 'reports' && item.href === '/app/books/reports' ? 'notebook-minimalistic'
+    // A "Settings" shortcut wears the rail's gear, whichever settings page it opens.
+    : item.shortcut && item.label === 'nav.settings' ? 'settings' : ITEM_ICON[item.href] ?? 'list';
 
 /** A channel's item carries the channel's own logo (the owner, 2026-11-26); everything else its Solar icon. */
 const ITEM_LOGO: Readonly<Record<string, BrandLogo>> = {
@@ -250,10 +275,10 @@ const ITEM_LOGO: Readonly<Record<string, BrandLogo>> = {
   '/app/settings/channels/telegram': 'telegram', '/app/settings/channels/tiktok': 'tiktok', '/app/products/whatsapp': 'whatsapp',
   '/app/settings/business/shopify': 'shopify',
 };
-const itemIcon = (area: AreaId, item: Item): string => {
+const itemIcon = (area: AreaId, item: Item, key = ''): string => {
   const logo = ITEM_LOGO[item.href];
-  if (item.href === '/app/settings/channels') return allChannelsSvg('sect-ic sect-logo', 20);
-  return logo ? brandSvg('sect-ic sect-logo', logo, 20) : solarSvg('sect-ic', iconOf(area, item), 20);
+  if (item.href === '/app/settings/channels') return allChannelsSvg('sect-ic sect-logo', 20, key);
+  return logo ? brandSvg('sect-ic sect-logo', logo, 20, key) : solarSvg('sect-ic', iconOf(area, item), 20);
 };
 
 const link = (locale: Locale, area: AreaId, item: Item, here: Item | null): string =>
@@ -285,7 +310,7 @@ export function sectionSidebar(locale: Locale, area: AreaId, path: string): stri
   // A group with no name of its own (an area's first, its overview) is headed by the area's name: the rail's icons
   // carry no words, so the sidebar says where you are.
   const groups = visible(area).map((g) =>
-    `<div class="sect-group"><p class="sect-head">${wordsHtml(locale, g.label ?? AREA_TITLE[area])}</p>${g.items.map((i) => link(locale, area, i, here)).join('')}</div>`).join('');
+    `<div class="sect-group">${g.bare ? '' : `<p class="sect-head">${wordsHtml(locale, g.label ?? AREA_TITLE[area])}</p>`}${g.items.map((i) => link(locale, area, i, here)).join('')}</div>`).join('');
   return `<aside class="sect" aria-label="${esc(t(locale, 'side.label'))}">${search(locale, area)}`
     + `<nav aria-label="${esc(t(locale, AREA_TITLE[area]))}">${groups}</nav></aside>`;
 }
@@ -311,3 +336,14 @@ export const isSectionPage = (area: AreaId, path: string): boolean => {
   // Its own address only: a page an item merely owns (a sub-page, an older address) keeps the way back it is given.
   return item !== null && base(item.href) === base(settingsHref(path));
 };
+
+/**
+ * Rule 104 (the owner's condition 1) — the Settings menu as a PAGE: the five groups and their pages, for this viewer,
+ * each a link. It is what `/app/settings` shows at every width, so on a phone, where there is no sidebar, the whole
+ * menu is one tap from the rail.
+ */
+export function settingsMenu(locale: Locale): string {
+  return visible('settings').map((g) =>
+    `<section class="sa-menu"${g.id ? ` id="${esc(g.id)}"` : ''}><h2 class="sa-menu-h">${wordsHtml(locale, g.label ?? AREA_TITLE.settings)}</h2>`
+    + `<ul class="sa-index-list">${g.items.map((i) => `<li><a href="${esc(i.href)}"><span class="sa-menu-name">${itemIcon('settings', i, '-menu')}<span>${wordsHtml(locale, i.label)}</span></span>${GO}</a></li>`).join('')}</ul></section>`).join('');
+}

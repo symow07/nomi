@@ -20,11 +20,10 @@ import { renderAnalytics, type AnalyticsData } from '../../src/api/web/analytics
 import { renderOrder, proformaText, proformaFileName, type OrderView } from '../../src/api/web/orders.js';
 import { renderAccount } from '../../src/api/web/account.js';
 import { renderBilling, type BillingView } from '../../src/api/web/billing.js';
-import { renderBusinessKind } from '../../src/api/web/businessKind.js';
 import { renderPhoneAlerts } from '../../src/api/web/phoneAlerts.js';
 import { renderComponents } from '../../src/api/web/components.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
-import { renderClosures, renderForbidden, FLOOR_BY_LANGUAGE } from '../../src/api/web/settings.js';
+import { renderHours, renderProfile, forbiddenSection, FLOOR_BY_LANGUAGE } from '../../src/api/web/settings.js';
 import { FORBIDDEN_FLOOR } from '../../src/core/safety/forbiddenWords.js';
 import type { Viewer } from '../../src/core/conversation/people.js';
 import { BACK, GO, icon } from '../../src/api/web/icons.js';
@@ -549,21 +548,26 @@ describe('an order', () => {
 const OWNER: Viewer = { id: 'owner', isOwner: true };
 const DATA = { businessName: 'Atlas Trading', requests: [] };
 const PAGES: Record<string, (l: Locale) => string> = {
-  account: (l) => renderAccount({ email: null, passwordMin: 10 }, l, null, t(l, 'nav.settings')),
+  account: (l) => renderAccount({ email: null, passwordMin: 10 }, l, null),
   alerts: (l) => renderPhoneAlerts({ publicKey: 'BPk', phones: [] }, l, null),
   billing: (l) => renderBilling({ configured: false, state: { billed: false } as BillingView['state'], plans: [], people: 1, assistants: 1, returned: null }, l, null, t(l, 'nav.settings')),
-  business: (l) => renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.settings')),
-  closures: (l) => renderClosures({ closures: [] }, l, null),
+  // Rule 104 — the kind of business, the country and the website are a section of Business profile; the closures are
+  // a section of Hours and closures. Each is drawn here as the page that holds it.
+  business: (l) => renderProfile({ name: 'Atlas Trading', description: null, location: null, workingHours: null, contactEmail: null, contactPhone: null, languagesServed: [] },
+    l, null, {}, {}, null, null, OWNER, {}, { view: { kind: 'manufacturer', country: 'CN', website: null } }),
+  closures: (l) => renderHours({ workingHours: null, zone: null, closures: [] }, l, null),
   components: (l) => renderComponents(l),
   data: (l) => renderDataRights(DATA, l, null, OWNER, t(l, 'nav.settings')),
-  forbidden: (l) => renderForbidden({ own: [], floor: FORBIDDEN_FLOOR }, l, null),
+  // Rule 104 — the words to avoid are a SECTION of Settings › Assistant › Promises and words, not a page: what a page
+  // owes (its title, its heading, one Save) is held for that page by tests/parity/settings-safety-lines.test.ts.
+  forbidden: (l) => forbiddenSection({ own: [], floor: FORBIDDEN_FLOOR }, l),
 };
 const draw = (page: string, l: Locale): string => withoutIsolates(PAGES[page]!(l));
 const textOf = (h: string) => h.replace(/<[^>]+>/g, ' ');
 
 describe('the settings pages', () => {
   it('V1-465 · V1-470 · V1-476 · V1-478 · V1-499 · V1-506 · each tab names its page by its heading, not "Setup"', () => {
-    for (const l of LOCALES) for (const p of ['account', 'billing', 'business', 'closures', 'data', 'forbidden']) {
+    for (const l of LOCALES) for (const p of ['account', 'billing', 'business', 'closures', 'data']) {
       const body = PAGES[p]!(l);
       const h1 = /<h1 class="page">([\s\S]*?)<\/h1>/.exec(body)![1]!.replace(/<[^>]+>/g, '');
       const page = withWorkspace(SCOPE, () => shell({ title: t(l, 'nav.settings'), active: 'settings', locale: l, path: `/app/settings/${p}`, bodyHtml: body }));
@@ -573,23 +577,34 @@ describe('the settings pages', () => {
 
   it('V1-478 · V1-506 · V1-491 · V1-468 · each page leads back to where it is reached from, drawn the same way, the heading under it', () => {
     // Phase 7 — closures are reached from My business › How you sell; the gallery and the alerts are Setup's (/app/settings/setup).
-    const backs: Record<string, string> = { closures: '/app/settings/business/selling', forbidden: '/app/settings/assistant', components: '/app/settings', alerts: '/app/settings' };
+    // Rule 104 — a page of the Settings menu (Hours and closures, Business profile, Billing, Data and privacy) has the
+    // menu beside it and draws no "back" of its own: it starts with its title.
+    for (const l of LOCALES) for (const p of ['closures', 'business', 'billing', 'data']) {
+      expect(draw(p, l).trimStart().startsWith('<h1 class="page">'), `${l}/${p}`).toBe(true);
+      expect(draw(p, l), `${l}/${p}`).not.toContain('class="back"');
+    }
+    const backs: Record<string, string> = { components: '/app/settings' };
     for (const l of LOCALES) for (const [p, href] of Object.entries(backs)) {
       expect(draw(p, l).trimStart().startsWith(`<a class="back" href="${href}">`), `${l}/${p}`).toBe(true);
     }
     expect(draw('alerts', 'en')).not.toContain('<div class="dhead">');
+    for (const l of LOCALES) expect(draw('alerts', l).trimStart().startsWith('<h1 class="page">'), `${l}/alerts`).toBe(true);
   });
 
   it('settings-a-new-09 · one intro style: the lede, under the heading', () => {
     // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Business's lede went.
-    for (const p of ['alerts', 'billing', 'closures', 'forbidden']) {
+    for (const p of ['alerts', 'billing', 'closures']) {
       const h = draw(p, 'en');
-      expect(h, p).toMatch(/<\/h1>\s*<p class="lede">/);
+      expect(h, p).toMatch(/<\/h1>\s*<p class="lede(?: set-lede)?">/);
     }
+    // The section's rule is its one line of help, under its heading.
+    expect(draw('forbidden', 'en')).toMatch(/<h2 class="set-h">Words to avoid<\/h2><p class="set-help">/);
   });
 
   it('settings-a-new-10 · an empty panel spans the column, as the cards above it do', () => {
-    for (const p of ['alerts', 'closures', 'forbidden', 'data']) expect(draw(p, 'en'), p).toContain('<div class="empty whole">');
+    for (const p of ['alerts', 'closures', 'data']) expect(draw(p, 'en'), p).toContain('<div class="empty whole">');
+    // In a section the empty list is one line, where the list will be.
+    expect(draw('forbidden', 'en')).toContain(`<p class="set-none muted">${t('en', 'forbidden.empty')}</p>`);
     expect(CSS).toMatch(/\.empty\.whole \{ max-width:100%; \}/);
   });
 
@@ -614,7 +629,8 @@ describe('the settings pages', () => {
     for (const l of LOCALES) expect(draw('alerts', l), l).toContain(shown(l, 'alerts.phone.none'));
     expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn notifications on there.');  // the warmth run, phase 9 (w4-settings-a-06): one name, notifications
     const one = withoutIsolates(renderPhoneAlerts({ publicKey: 'BPk', phones: [{ id: '66666666-6666-4666-8666-666666666666', personId: null, endpoint: 'https://push.example/x', p256dh: 'k', auth: 'a', device: 'iPhone', createdAt: NOW }] }, 'en', null));
-    expect(one).toContain('<div class="scard"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
+    // Rule 104 — the same rows, in the template's row group.
+    expect(one).toContain('<div class="set-rows"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
   });
 
   it('V1-469 · V1-471 · settings-a-new-05 · settings-a-new-06 · billing: the plan and what is charged, as rows; no software word', () => {
@@ -633,7 +649,8 @@ describe('the settings pages', () => {
   it('V1-472 · V1-473 · V1-474 · V1-475 · settings-a-new-07 · kind of business: what the page holds, what it is for, the country not asked twice', () => {
     for (const l of LOCALES) {
       const h = draw('business', l);
-      expect(/<h1 class="page">([^<]*)<\/h1>/.exec(h)![1], l).toBe(shown(l, 'business.kind.title'));
+      // Rule 104 — a section of Business profile, under its own heading, in the profile's one form.
+      expect(h, l).toContain(`<section class="set-sec" id="business-kind"><h2 class="set-h">${shown(l, 'ws.profile.typeWebsite')}</h2>`);
       expect(t(l, 'business.kind.title'), l).toBe(t(l, 'setup.desc.kind'));
       expect(t(l, 'business.kind.title'), l).not.toBe(t(l, 'signup.kind'));
       // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went.
@@ -685,14 +702,16 @@ describe('the settings pages', () => {
       const files = [...h.matchAll(/<li class="row">\s*<span>([^<]+)<\/span>\s*<a class="dl-get" href="\/app\/settings\/data\/[a-z-]+\.csv" download><svg class="ni sl"/g)];
       expect(files, l).toHaveLength(9);
       // "What you set up" opens its own section, with the space sections have (it touched the rows above)
-      expect(h, l).toMatch(new RegExp(`</section>\\s*<section class="block">\\s*<h2>${esc(t(l, 'data.export.configTitle'))}</h2>`));
+      expect(h, l).toMatch(new RegExp(`</section>\\s*<section class="set-sec" id="config"><h2 class="set-h">${esc(t(l, 'data.export.configTitle'))}</h2>`));
     }
     expect(draw('data', 'en')).toContain('up to 20,000 rows');
   });
 
-  it('V1-493 · settings-a-new-13 · settings-a-missed-15 · closing the workspace (0126): a card of rows, a red button, words that agree with it', () => {
+  it('V1-493 · settings-a-new-13 · settings-a-missed-15 · closing the workspace (0126): a row of the danger zone, a red button, words that agree with it', () => {
     const h = draw('data', 'en');
-    expect(h).toMatch(/<form method="post" action="\/app\/settings\/data\/close">\s*<input type="hidden" name="asked" value="0" \/>\s*<section class="sgroup"><div class="scard"><div class="setrow"><div class="fr-l"><label class="fr-name" for="dr-name">/);
+    // Rule 104 — the last row of the danger zone: the name to type, labelled, then the button.
+    expect(h).toMatch(/<form method="post" action="\/app\/settings\/data\/close" class="set-act"><input type="hidden" name="asked" value="0" \/><label class="fld" for="dr-name">/);
+    expect(h.indexOf('action="/app/settings/data/close"')).toBeGreaterThan(h.indexOf('id="danger-zone"'));
     expect(h).toContain('<button class="btn danger" type="submit"');
     for (const l of LOCALES) {
       expect(t(l, 'data.deletion.now'), l).not.toMatch(/not a button|不是一个按|ليس زرًّا|no es un botón|n’est pas un bouton/i);
@@ -726,7 +745,7 @@ describe('the settings pages', () => {
     expect(FLOOR_BY_LANGUAGE.flatMap((g) => g.words)).toEqual([...FORBIDDEN_FLOOR]);
     for (const l of LOCALES) {
       const h = draw('forbidden', l);
-      expect(h, l).toContain(`<h2>${shown(l, 'forbidden.floor.title')}</h2>`);
+      expect(h, l).toContain(`<h3 class="sgroup-h">${shown(l, 'forbidden.floor.title')}</h3>`);
       expect(h, l).toContain(`<summary>${withoutIsolates(esc(tn(l, 'forbidden.floor.count', FORBIDDEN_FLOOR.length)))}</summary>`);
       // why it is there is said before the fold, not inside it
       expect(h.indexOf(shown(l, 'forbidden.floor.body')), l).toBeLessThan(h.indexOf('<details class="floor-fold">'));

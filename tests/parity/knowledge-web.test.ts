@@ -1,10 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import {
-  renderKnowledgeIndex, renderProductKnowledge, certRows, CERTS_HOME,
+  renderKnowledgeIndex, renderProductKnowledge, certTable, CERTS_HOME,
   type KnowledgeIndex, type ProductKnowledge,
 } from '../../src/api/web/knowledge.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+
+// Rule 104 — a certification is a ROW of a table: its name in words, and a switch that says its state in words, asks
+// first with the question that names it, and acts at once (the route and what it stores are as they were).
+const certRow = (html: string, label: string): string => {
+  const at = html.indexOf(`<th scope="row"><bdi>${label}</bdi></th>`);
+  if (at < 0) throw new Error(`no row for ${label}`);
+  return html.slice(at, html.indexOf('</tr>', at));
+};
 
 const index: KnowledgeIndex = {
   products: [{ id: 'p1', name: 'Non-woven bag', count: 2 }],
@@ -53,10 +61,13 @@ describe('M13 · knowledge UI (localized renderer)', () => {
     expect(html).toContain(t('en', 'knowledge.cert.onHere', { list: 'CE marking' }));
     expect(html).toContain(`href="${CERTS_HOME}"`);
     // The panel itself writes claims_policy; CE is on, in words and with its mark.
-    const all = certRows('en', index.certs ?? [], 12);
+    const all = certTable('en', index.certs ?? [], 12);
     expect(all).toContain('action="/app/knowledge/cert"');
-    expect(all).toMatch(/<b><bdi>CE marking<\/bdi><\/b> <span class="pill ok">On<\/span>/);   // isolated: a code inside Arabic words (surface walk)
-    expect(all).toContain('value="FDA"');   // an off cert is still offered
+    // The name is isolated (a code inside Arabic words, surface walk); its switch is on, and says so in words.
+    expect(certRow(all, 'CE marking')).toMatch(/role="switch" aria-checked="true"[\s\S]*<span class="set-state">On<\/span>/);
+    expect(certRow(all, 'CE marking')).toContain('<input type="hidden" name="allowed" value="0" />');
+    expect(all).toContain('name="key" value="FDA"');   // an off cert is still offered
+    expect(certRow(all, 'FDA approval')).toMatch(/name="allowed" value="1" \/>[\s\S]*aria-checked="false"[\s\S]*<span class="set-state">Off<\/span>/);
   });
 
   it('correct/archive forms carry the product id for the redirect', () => {
@@ -90,9 +101,9 @@ describe('M22 (F-03) · claims scope is stated, not implied', () => {
     items: [], certs: ['CE'], appliesToProducts: 12,
   };
   // The warmth run, phase 9 (w4-products-knowledge-02) — the switches live on My business ›
-  // What you promise customers, which is about the whole business (`certRows`, drawn there).
+  // What you promise customers, which is about the whole business (`certTable`, drawn there).
   const all: KnowledgeIndex = { products: [], business: [], certs: ['CE'], appliesToProducts: 12 };
-  const rows = (l: (typeof LOCALES)[number] = 'en') => certRows(l, all.certs ?? [], 12);
+  const rows = (l: (typeof LOCALES)[number] = 'en') => certTable(l, all.certs ?? [], 12);
 
   it('says plainly that certifications cover the whole catalogue', () => {
     expect(renderKnowledgeIndex(all, 'en')).toContain('These certifications are on for everything you sell: CE marking.');

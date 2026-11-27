@@ -59,14 +59,16 @@ d('the advisor run · the assistant in Settings, the advisor walled off (require
   it('the assistant\'s page opens in the assistant\'s area (the navigation block), the control first', async () => {
     const settings = await get('/app/settings');
     expect(settings.statusCode).toBe(200);
-    // The navigation block (2026-11-25): the assistant's settings live in the assistant's own area; Settings says so.
-    expect(settings.body).not.toContain('href="/app/settings/assistant"');
+    // The settings overhaul (rule 104): ONE Settings area, and the assistant's settings are pages of it, in its menu.
+    expect(settings.body).toContain('href="/app/settings/assistant"');
     const page = await get('/app/settings/assistant');
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('id="on-her-own"');
-    expect(page.body).toContain('action="/app/settings/assistant/autonomy"');
-    // Configuration is the assistant area's "Go live" group, lit in its sidebar; Ask Nomi has its own slot in the rail.
-    expect(page.body).toMatch(/<a href="\/app\/assistant" class="navlink nav-desktop active"/);
+    // the levels are fields of the page's one form, which the one Save sends
+    expect(page.body).toContain('action="/app/settings/assistant/save"');
+    expect(page.body).toContain('name="level"');
+    // Settings is what is lit in the rail, and this page in Settings' own sidebar.
+    expect(page.body).toMatch(/<a href="\/app\/settings" class="navlink nav-desktop active"/);
     expect(page.body).toContain('<a href="/app/settings/assistant" aria-current="page">');
     expect(page.body).toContain('href="/app/assistant"');
     expect(page.body).not.toContain('href="/app/employee');

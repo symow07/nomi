@@ -78,9 +78,10 @@ On success it prints `PASS` and leaves the server running, e.g.:
 
 ```
 PASS — Nomi is running and the owner walkthrough was driven end-to-end.
-  walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
-                → buyer turn → take over → owner reply → hand back
-                rehearsal observed by the runbook: take-over, owner reply and hand-back ticked
+  walkthrough:  auth gate → login → Today → Getting started → Practice
+                → Settings menu → Reply permissions (levels) → Promises and words (+ the doors they hold)
+                → customer turn → take over → owner reply → hand back
+                rehearsal on record for the checklist: take-over, owner reply and hand-back
                 sandbox channel credentials: 0 (must be 0 — nothing delivered)
   health:       {"ok":true,"db":true,"worker":true,"provider":"disabled"}
   URL:          http://127.0.0.1:8787
@@ -89,12 +90,14 @@ PASS — Nomi is running and the owner walkthrough was driven end-to-end.
 ```
 
 Artifacts land in `/tmp/yf-run/`: `app.log` (server log), `app-home.html`,
+`app-settings.html`, `app-permissions.html`, `app-promises.html`,
 `app-onboard.html`, `app-sandbox.html` (the rendered pages), `cookies.txt` (an
 authenticated session).
 
 The walkthrough is the regression net for the owner path: it asserts each
 surface renders, that every owner action is a 302 (Post/Redirect/Get), that the
-runbook **observes** the rehearsal it just practised (`3/5` or better), and that
+rehearsal it just practised is **on record** where Getting started reads it (the
+practice copy's take-over, owner reply and hand-back events), and that
 the sandbox tenant still has **zero** channel credentials — i.e. nothing was
 really delivered. Any missing marker or wrong status code aborts with `FAIL`.
 
@@ -105,9 +108,9 @@ Override the ports or login code via env: `PGPORT=... PORT=... OWNER_ACCESS_CODE
 The script leaves a logged-in cookie jar. These return the expected marker text:
 
 ```bash
-curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/knowledge  | grep -o 'What your assistant knows'
-curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/onboarding | grep -o 'Checklist'
-curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/sandbox    | grep -o 'This is practice only'
+curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/assistant/knowledge | grep -o 'What your assistant knows'
+curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/get-started         | grep -o 'Getting started'
+curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/assistant/practice  | grep -o 'Practice only.'
 ```
 
 Log in from scratch (the flow the script automates):

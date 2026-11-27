@@ -9,6 +9,7 @@ import { bubbleClass } from './inbox.js';
 import { flashBanner } from './flash.js';
 import * as show from './values.js';
 import { usd } from '../../core/types/money.js';
+import { pageHead, setRow, setSection, setNotice, saveForm, saveActs, rowAction, rowSwitch, dangerZone, searchList, listRow, pickList, pickField } from './settingsPage.js';
 
 /**
  * V1 step two — every component the shell defines, in every state it can be
@@ -113,6 +114,29 @@ export function renderComponents(locale: Locale): string {
     <p class="note">${s('sample.help')}</p>
     <p class="subline">${s('sample.help')}</p>`;
 
+  // The settings overhaul (rule 104) — the ONE settings page template, every part in every state: the head, a
+  // notice (plain, with a door, with an act), rows (needed, with help, sent back), the one Save, row acts and
+  // switches (on, off, disabled), a list with search, the searchable choice, and the danger zone. Samples only:
+  // the block is inert, so pressing one does nothing.
+  const HERE = '/app/settings/components';
+  const options = Array.from({ length: 12 }, (_, i) => ({ value: String(5100 + i), label: `${5100 + i} ${t(locale, 'components.sample.option')}` }));
+  const settingsParts = `<div inert>
+    ${/* one h1 per page (CC-20): the sample title is drawn a level down here */ pageHead(t(locale, 'components.sample.title'), t(locale, 'components.sample.help')).replace(/<(\/?)h1/g, '<$1h2')}
+    ${setNotice({ text: t(locale, 'components.sample.help') })}
+    ${setNotice({ text: t(locale, 'components.sample.help'), door: { href: HERE, label: t(locale, 'components.sample.more') } })}
+    ${setNotice({ text: t(locale, 'components.sample.help'), act: rowAction({ action: HERE, label: t(locale, 'components.state.rest') }) })}
+    ${saveForm(HERE, setSection({ title: t(locale, 'components.sections'), help: t(locale, 'components.sample.help'), rows: [
+      setRow(locale, { label: t(locale, 'components.sample.label'), forId: 'set-a', needed: true, desc: t(locale, 'components.sample.help'), control: '<input id="set-a" name="a" value="" />' }),
+      setRow(locale, { label: t(locale, 'components.sample.label'), forId: 'set-b', control: `<select id="set-b" name="b"><option>${s('sample.option')}</option><option>${s('sample.more')}</option></select>` }),
+      setRow(locale, { label: t(locale, 'components.sample.label'), forId: 'set-c', control: '<input id="set-c" name="c" value="" aria-invalid="true" />', error: `<span class="fielderr" role="alert">${s('sample.help')}</span>` }),
+      setRow(locale, { label: t(locale, 'components.sample.label'), forId: 'set-d', desc: t(locale, 'components.sample.help'), control: pickField(locale, { id: 'set-d', name: 'd', list: 'set-options', current: options[0] ?? null }) }),
+    ] }) + pickList('set-options', options) + saveActs(locale))}
+    ${setSection({ title: t(locale, 'components.sample.more'), rows: searchList(locale, `<table class="team-table"><tbody>${options.map((o, i) =>
+      `<tr${listRow()}><th scope="row"><bdi>${esc(o.label)}</bdi></th><td>${rowSwitch(locale, { action: HERE, on: i % 2 === 0, label: o.label, disabled: i === 2 })}</td>`
+      + `<td>${i === 0 ? rowAction({ action: HERE, label: t(locale, 'components.sample.act'), confirm: t(locale, 'components.sample.ask'), danger: true }) : rowAction({ action: HERE, label: t(locale, 'components.sample.act') })}</td></tr>`).join('')}</tbody></table>`) })}
+    ${dangerZone(locale, [{ title: t(locale, 'components.sample.label'), what: t(locale, 'components.sample.help'), action: HERE, verb: t(locale, 'components.sample.act'), confirm: t(locale, 'components.sample.ask') }])}
+  </div>`;
+
   // Phase 9 (V1-491) — the way back, at the top like every Setup page.
   return `${back('/app/settings/setup', t(locale, 'nav.setup'))}
     <h1 class="page">${s('title')}</h1>
@@ -130,5 +154,6 @@ export function renderComponents(locale: Locale): string {
     ${section('toast', toast)}
     ${section('counts', counts)}
     ${section('sections', sections)}
-    ${section('text', text)}`;
+    ${section('text', text)}
+    ${section('settings', settingsParts)}`;
 }

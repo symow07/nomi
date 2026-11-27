@@ -5,6 +5,8 @@ import { join, relative, resolve } from 'node:path';
 import { renderEmployee, screenHref, EMPLOYEE_SCREENS, aloneInForce, type EmployeeProfile } from '../../src/api/web/employee.js';
 import { renderSettingsHome } from '../../src/api/web/settings.js';
 import { ASSISTANT_HOME } from '../../src/api/web/layout.js';
+import { SETTINGS_MOVES } from '../../src/api/web/settingsNavigation.js';
+import { AREAS } from '../../src/api/web/sections.js';
 import { agentMark } from '../../src/api/web/agentMark.js';
 import { t, withAssistantName, withWorkspace } from '../../src/api/web/say.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -65,19 +67,37 @@ describe('ship 1 · the assistant\'s page is Settings\' first row, whole, one le
       expect(withAssistantName('Lily', () => aloneInForce(talks, l)), l).toBe(withAssistantName('Lily', () => t(l, 'autonomy.level.waits')));
     });
 
-    it(`${l} · nothing lost: the landing opens on the control, whole, then the same menu, every row a door under its new address`, () => {
+    // Rule 104 — the landing's menu is the Settings menu now (its Assistant group) and the Assistant area; the page at
+    // this address is "Reply permissions", which still opens on the control, whole. Every row the menu had is a page
+    // of that group, a part of this page, or a daily page of the Assistant area: its old address still arrives.
+    it(`${l} · nothing lost: the page opens on the control, whole; every row the menu had is still reached`, () => {
       gate.released = true;
       const html = withAssistantName('Lily', () => renderEmployee(talks, l, null));
-      const control = html.indexOf('<section class="block level-control" id="on-her-own">');
+      const control = html.indexOf('<section class="set-sec" id="on-her-own">');
       expect(control, l).toBeGreaterThan(0);
-      expect(control, l).toBeLessThan(html.indexOf('class="sgroup"'));
-      expect(html, l).toContain(`<form method="post" action="${ASSISTANT_HOME}/autonomy" class="levels">`);
-      const doors = [...html.matchAll(/<a class="srow sr-menu(?: sr-two)?" href="([^"]+)">/g)].map((m) => m[1]);
-      expect(doors, l).toEqual([
-        screenHref('talk'), '/app/assistant/knowledge', screenHref('learning'), '/app/settings/assistant/words',
-        screenHref('name'), screenHref('replies'), screenHref('one-kind'), '/app/assistant/practice',
-        screenHref('month'), screenHref('next'), screenHref('history'),
-      ]);
+      expect(control, l).toBeLessThan(html.indexOf('id="reply-types"'));
+      expect(html.indexOf('id="reply-types"'), l).toBeLessThan(html.indexOf('id="follow-ups"'));
+      // the three levels, fields of the page's one form
+      expect(html.match(/<input type="radio" name="level" value="(waits|talks|sells)" form="reply-permissions"/g), l).toHaveLength(3);
+      expect(html, l).toContain(`<form method="post" action="${ASSISTANT_HOME}/save" class="set-form" data-save id="reply-permissions">`);
+      const group = AREAS.settings.find((g) => g.id === 'assistant')!.items.map((i) => i.href);
+      expect(group, l).toEqual([ASSISTANT_HOME, `${ASSISTANT_HOME}/name`, `${ASSISTANT_HOME}/promises`]);
+      // Going live keeps its place in the Assistant area's own sidebar
+      expect(AREAS.assistant.flatMap((g) => g.items.map((i) => i.href)), l).toContain(`${ASSISTANT_HOME}/ready`);
+      // the rows that were setup screens: a part of this page, or a page of the group
+      const parts: Record<string, string> = {
+        [`${ASSISTANT_HOME}/alone`]: ASSISTANT_HOME, [`${ASSISTANT_HOME}/replies`]: `${ASSISTANT_HOME}#reply-types`,
+        [`${ASSISTANT_HOME}/one-kind`]: `${ASSISTANT_HOME}#reply-types`, [`${ASSISTANT_HOME}/next`]: `${ASSISTANT_HOME}#progress`,
+        [`${ASSISTANT_HOME}/words`]: `${ASSISTANT_HOME}/promises#words`,
+      };
+      for (const [old, now] of Object.entries(parts)) {
+        expect(SETTINGS_MOVES[old], old).toBe(now);
+        const part = now.split('#')[1];
+        if (part && now.startsWith(`${ASSISTANT_HOME}#`)) expect(html, `${l} ${part}`).toContain(`id="${part}"`);
+      }
+      // and the daily rows are the Assistant area's pages
+      for (const s of ['talk', 'learning', 'history', 'checks'] as const) expect(screenHref(s), s).toBe(dailyAssistantScreen(s));
+      expect(screenHref('month'), l).toBe(`${ASSISTANT_HOME}/month`);
     });
   }
 

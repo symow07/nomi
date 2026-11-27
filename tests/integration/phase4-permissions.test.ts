@@ -256,13 +256,14 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const pages: ReadonlyArray<readonly [string, RegExp]> = [
       ['/app/get-started', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
       ['/app/business/allowlist', /action="\/app\/business\/allowlist\/(add|remove)"/],
-      ['/app/channels/alerts', /action="\/app\/settings\/owner-phone"/],
+      // Rule 104 — the number is a field of Notifications' one Save: the owner has the field, staff the sentence.
+      ['/app/channels/alerts', /<input id="ownerphone" name="phone"/],
       ['/app/products', /href="\/app\/products\/add"/],
       ['/app/products/add', /action="\/app\/products\/add\/(review|photo)"/],
       [`/app/products/${PID}`, /action="\/app\/products\/[^"]+\/edit"/],
-      ['/app/settings/rate', /action="\/app\/settings\/rate"/],
-      ['/app/settings/samples', /action="\/app\/settings\/samples"/],
-      ['/app/settings/terms', /action="\/app\/settings\/terms"/],
+      // Rule 104 — the rate is on Currency, the terms and the sample policy on How you sell: each page's one Save.
+      ['/app/settings/business/currency', /action="\/app\/settings\/business\/currency"/],
+      ['/app/settings/business/selling', /action="\/app\/settings\/business\/selling"/],
     ];
     for (const [url, form] of pages) {
       const owner = await get(ownerCookie, url);

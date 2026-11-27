@@ -688,12 +688,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C — the row
     // Phase 9 (V1-422) — the history and the next step, in plain words: rows here, screens one tap down.
     expect(res.body).toContain('id="progress"');
-    expect(res.body).toContain(esc(t('en', 'employee.promo.title')));
+    expect(res.body).toContain(esc(t('en', 'employee.promo.current')));   // rule 104: "what comes next" is one line, under the kinds
     expect(res.body).not.toContain('置信度');       // no invented score
     const screen = async (s: string) => (await prod.app.inject({ method: 'GET', url: settingsHref(assistantPageUrl(`/app/settings/assistant/${s}`)), headers: { cookie } }));
     const replies = await screen('replies');
     expect(replies.statusCode).toBe(200);
-    expect(replies.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
+    // Phase C: permission wording. Rule 104 — each kind is a row that says where it stands, in a pill: set to go
+    // without you, and whether it does now (the name confirmed, the wording released) or still waits.
+    expect(replies.body).toMatch(new RegExp(`<span class="pill long[^"]*">(?:${esc(t('en', 'her.handles.alone'))}|${esc(t('en', 'her.handles.held'))})</span>`));
     // demo: greet is promoted (auto) → appears under Can do now as Greeting
     expect(replies.body).toContain('Greeting');
     expect(replies.body).toContain('id="reply-types"');
@@ -1745,8 +1747,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Phase 4b (F2/F4) — on the technical page, one door from Getting ready.
     it('the owner surface DOES show which build is running (behind login)', async () => {
       const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/channels/technical', headers: { cookie } });
+      // Rule 104 — the technical page is the last section of Channels (folded); its address opens it there.
+      const moved = await prod.app.inject({ method: 'GET', url: '/app/settings/channels/technical', headers: { cookie } });
+      expect([moved.statusCode, moved.headers['location']]).toEqual([302, '/app/settings/channels?open=technical#technical']);
+      const res = await prod.app.inject({ method: 'GET', url: '/app/settings/channels?open=technical', headers: { cookie } });
       expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('id="technical" open>');
       expect(res.body).toContain('This installation');
       expect(res.body).toContain('Running version');
       expect(res.body).toContain('Environment');
@@ -2023,7 +2029,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const res = await prod.app.inject({ method: 'GET', url: '/app/settings/assistant', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain(`<h1 class="page">${esc(t('en','settingsArea.permissions'))}</h1>`);
-      expect(res.body).toContain('href="/app/settings/assistant/words"');
+      expect(res.body).toContain('href="/app/settings/assistant/promises"');   // rule 104: the words are a section of that page
       expect(res.body).toContain(esc(t('en', 'her.handles.title')));
       expect(res.body).toContain('id="progress"');
       expect(res.body).toContain('id="reply-types"');
@@ -2288,7 +2294,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // (w4-products-knowledge-02) the promises screen is where each certification is switched, so it is
       // listed there either way — now off, with the act that turns it on; the menu no longer names it.
       const on = await html();
-      expect(on).toMatch(/<bdi>ISO 9001 quality system<\/bdi><\/b> <span class="pill">Off<\/span>/);
+      // Rule 104 — the row is Promises and words' certification table: the name, then its own switch, off.
+      expect(on).toMatch(/<th scope="row"><bdi>ISO 9001 quality system<\/bdi><\/th><td class="as-act"><form method="post" action="\/app\/knowledge\/cert"[^>]*>(?:<input [^>]*\/>)*<button class="set-switch" type="submit" role="switch" aria-checked="false"[^>]*><span class="set-track" aria-hidden="true"><\/span><span class="set-state">Off<\/span>/);
       const { renderFactory } = await import('../../src/api/web/factory.js');
       expect(renderFactory(await view(), 'en')).not.toContain('ISO 9001 quality system');
     });

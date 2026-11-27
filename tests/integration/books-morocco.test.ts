@@ -135,11 +135,25 @@ d('D4 · Morocco: the CGNC chart and the FEC (requires DATABASE_URL + MIGRATE_DA
     // shown on the profile, a Moroccan business's, empty
     const profile = (await app.inject({ method: 'GET', url: '/app/settings/business/profile', headers: { cookie: owner } })).body;
     expect(profile).toContain('id="identifiers"');
-    expect(profile).toContain('action="/app/settings/identifiers"');
+    // Rule 104 — fields of the profile's one form, saved by its one Save (the older command still answers, below).
+    expect(profile).toContain('name="ice"');
+    expect(profile.match(/data-save/g)?.length).toBe(1);
     // staff see them and change nothing; nor does the accountant
     const seen = (await app.inject({ method: 'GET', url: '/app/settings/business/profile', headers: { cookie: staff } })).body;
     expect(seen).toContain('id="identifiers"');
     expect(seen).not.toContain('action="/app/settings/identifiers"');
+    expect(seen).not.toContain('name="ice"');
+    // …and the page's own Save keeps both rules: staff's identifiers are not read, the owner's are checked first.
+    const named = String((await admin.query(`select name from businesses where id = $1`, [BIZ])).rows[0].name);   // the name as it is: nothing else changes
+    const own = (fields: Record<string, string>, who = owner) => app.inject({ method: 'POST', url: '/app/settings/business/profile',
+      payload: new URLSearchParams({ name: named, ...fields }).toString(), headers: { cookie: who, 'content-type': 'application/x-www-form-urlencoded' } });
+    await own({ ice: '001234567000089', tax_id: '1', rc: '1', rc_court: 'Rabat' }, staff);
+    expect(await stored()).toEqual({ legal_ice: null, legal_if: null, legal_rc: null, legal_rc_court: null });
+    const ownBad = await own({ ice: '00123456700008', tax_id: '40123456', rc: '123456', rc_court: '' });
+    expect(ownBad.statusCode).toBe(400);
+    expect(ownBad.body).toContain('An ICE has 15 positions.');
+    expect(ownBad.body).toContain('value="00123456700008"');
+    expect(await stored()).toEqual({ legal_ice: null, legal_if: null, legal_rc: null, legal_rc_court: null });
     for (const who of [staff, accountant]) {
       const tried = await form({ ice: '001234567000089', tax_id: '1', rc: '1', rc_court: 'Rabat' }, who);
       expect(tried.statusCode).toBe(302);

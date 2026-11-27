@@ -140,7 +140,11 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
     // UI Block 9 (F10): a record part's Cancel puts its form back and closes its fold, Escape closes it with the words
     // kept, and a #link to a part opens its fold (editFolds() and the deep link, 1,084 characters) — 61,378 measured;
     // 60,400 became 61,500, deliberately.
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(61_500);
+    // The settings overhaul (rule 104, the owner's condition 2): a settings page's ONE Save means a changed field can be
+    // lost by leaving, so the script marks a changed form and asks before the page is left (unsaved()), and a long
+    // list gets its search box and 25 rows at a time (lists()) — 3,169 characters, 64,636 measured; 61,500 became
+    // 65,200, deliberately.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(65_200);
     // The Intercom pass (2026-11-26): Cmd/Ctrl+Enter in a reply presses that form's Send, through its usual busy state.
     expect(LIVE_SCRIPT).toContain("if (e.key == 'Enter' && (e.metaKey || e.ctrlKey)) { var s = e.target.form && e.target.form.querySelector('.send,.sp-send'); if (s) e.preventDefault(), s.click(); return; }");
     // The warmth run's re-audit (w4-whole-03/05/22/23, w4-settings-a-15): the rail's words kept on update, the card held while

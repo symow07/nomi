@@ -193,7 +193,9 @@ describe('who may do it', () => {
   });
 
   it('it is reachable — Settings links to it', () => {
-    expect(read('src/api/web/settingsArea.ts')).toContain("['data','settingsArea.data']");
+    // Rule 104: the Settings menu (sections.ts) lists it under Workspace, for the owner; the menu page draws that list.
+    expect(read('src/api/web/sections.ts')).toContain("{ label: 'settingsArea.data', href: '/app/settings/business/data', also: [`${ASSISTANT_SETTINGS}/history-policy`], show: owner }");
+    expect(read('src/api/web/settingsArea.ts')).toContain('settingsMenu(locale)');
   });
 });
 

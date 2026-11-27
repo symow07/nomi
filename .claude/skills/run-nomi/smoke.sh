@@ -124,7 +124,7 @@ post() {  # post <path> <data> <what>
 }
 
 #  auth gate — every owner surface must bounce when signed out
-for p in /app /app/onboarding /app/sandbox; do
+for p in /app /app/get-started /app/assistant/practice; do
   [ "$(curl -sS -o /dev/null -w '%{http_code}' "$BASEURL$p")" = "302" ] || fail "$p should redirect unauthenticated"
 done
 [ "$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$BASEURL/app/sandbox/takeover")" = "302" ] \
@@ -133,19 +133,20 @@ done
 #  login
 curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE" || fail "login POST"
 
-#  the owner surfaces
-get /app            "$SK/app-home.html"   'class="sp-head"'  "Home did not render"
-get /app/business   "$SK/app-factory.html" "What you promise customers" "My business did not render"
-get /app/onboarding "$SK/app-onboard.html" '<h1 class="page">Checklist' "The checklist did not render"
-get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandbox did not render"
+#  the owner surfaces (the pages as they are since the settings overhaul, rule 104: ONE Settings area)
+get /app                 "$SK/app-home.html"     'class="sp-head"'                      "Home did not render"
+get /app/get-started     "$SK/app-onboard.html"  '<h1 class="page">Getting started'     "Getting started did not render"
+get /app/assistant/practice "$SK/app-sandbox.html" "Practice only."                   "Practice did not render"
+get /app/settings        "$SK/app-settings.html" 'href="/app/settings/business/profile"' "The Settings menu page did not render"
+#  Reply permissions: the assistant's levels, a choice of three that waits for the page's one Save
+get /app/settings/assistant "$SK/app-permissions.html" 'name="level" value="waits" form="reply-permissions"' "Reply permissions did not render its levels"
+#  Promises and words: what the assistant may promise, and the words it never says
+get /app/settings/assistant/promises "$SK/app-promises.html" '<h1 class="page">Promises and words</h1>' "Promises and words did not render"
 
-#  The warmth run — My business, the assistant and Settings are menus: each is the
-#  door to the surfaces it holds, and they must stay reachable.
-# The assistant's page lives in Settings (ASSISTANT_HOME); /app/employee only redirects there, and `get` does not follow.
-get /app/settings/assistant "$SK/app-employee.html" 'level-control'      "The assistant's page did not render"
-get /app/settings   "$SK/app-settings.html" 'href="/app/settings/setup"'  "Settings did not render"
-for pair in app-factory.html:/app/products app-factory.html:/app/business/channels \
-            app-employee.html:/app/knowledge app-settings.html:/app/business; do
+#  Each page is a door to the pages it names, and they must stay reachable.
+for pair in app-home.html:/app/products app-settings.html:/app/settings/channels \
+            app-settings.html:/app/settings/assistant/promises app-promises.html:/app/settings/assistant/name \
+            app-permissions.html:/app/settings/assistant/promises; do
   f="${pair%%:*}"; r="${pair#*:}"
   grep -q "href=\"$r\"" "$SK/$f" || fail "$f no longer links to $r"
   [ "$(curl -sS -b "$J" -o /dev/null -w '%{http_code}' "$BASEURL$r")" = "200" ] || fail "$r stopped rendering"
@@ -153,27 +154,24 @@ done
 
 #  rehearsal: buyer turn → take over → owner reply → hand back
 post /app/sandbox/message  "text=Do%20you%20make%20canvas%20tote%20bags%3F" "practice customer line"
-get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "take-over control missing"
+get  /app/assistant/practice "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "take-over control missing"
 post /app/sandbox/takeover "" "practice takeover"
-get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/reply"'   "owner reply box missing after takeover"
+get  /app/assistant/practice "$SK/app-sandbox.html" 'action="/app/sandbox/reply"'   "owner reply box missing after takeover"
 post /app/sandbox/reply    "text=Owner%20here%20%E2%80%94%20yes%2C%20we%20can%20do%20that." "practice owner reply"
 # The reply leaves through the outbound worker to the practice adapter: a second or two.
 for _ in $(seq 1 30); do
-  curl -sS -b "$J" "$BASEURL/app/sandbox" -o "$SK/app-sandbox.html" && grep -q "Owner here" "$SK/app-sandbox.html" && break
+  curl -sS -b "$J" "$BASEURL/app/assistant/practice" -o "$SK/app-sandbox.html" && grep -q "Owner here" "$SK/app-sandbox.html" && break
   sleep 1
 done
 grep -q "Owner here" "$SK/app-sandbox.html" || fail "owner reply never reached the transcript"
 post /app/sandbox/resume   "" "practice resume"
-get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "did not hand back to the employee"
+get  /app/assistant/practice "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "did not hand back to the employee"
 
-#  the runbook must now observe the rehearsal it just practised
-get /app/onboarding/practice "$SK/app-practice.html" '<h1 class="page">Practice before you go live' "The checklist's Practice screen did not render"
-# Phase 9 of the warmth run — what to try in Practice is its own screen under the
-# checklist, one list of tasks: the three acts just rehearsed must each be ticked.
-for act in "Take over the conversation" "Reply as yourself" "Hand it back to"; do
-  grep -q "class=\"pr done\"><span class=\"mk\"><span class=\"shape s-ok\" aria-hidden=\"true\"></span></span> <span class=\"lbl\">$act" "$SK/app-practice.html" \
-    || fail "rehearsal not observed by the checklist ($act not ticked)"
-done
+#  the rehearsal is on record where Getting started reads it (pilot.ts: the practice copy's conversation_events)
+SEEN="$(psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc \
+  "select string_agg(distinct e.type, ',' order by e.type) from conversation_events e join businesses b on b.id = e.business_id where b.practice_of is not null and e.type in ('takeover','owner_reply','resume_ai');" 2>/dev/null | tr -d ' ')"
+[ "$SEEN" = "owner_reply,resume_ai,takeover" ] || fail "rehearsal not on record for the checklist (saw: ${SEEN:-nothing})"
+get /app/get-started "$SK/app-practice.html" 'href="/app/onboarding/practice"' "Getting started lost its door to the practice checklist"
 
 #  nothing was really delivered: a practice copy can hold no channel credential (0086's trigger)
 CREDS="$(psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc \
@@ -183,21 +181,21 @@ CREDS="$(psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc \
 cat <<EOF
 
 PASS — Nomi is running and the owner walkthrough was driven end-to-end.
-  walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
-                → My business (+ the 4 surfaces it contains)
-                → buyer turn → take over → owner reply → hand back
-                rehearsal observed by the runbook: take-over, owner reply and hand-back ticked
+  walkthrough:  auth gate → login → Today → Getting started → Practice
+                → Settings menu → Reply permissions (levels) → Promises and words (+ the doors they hold)
+                → customer turn → take over → owner reply → hand back
+                rehearsal on record for the checklist: take-over, owner reply and hand-back
                 sandbox channel credentials: $CREDS (must be 0 — nothing delivered)
   URL:          $BASEURL
   health:       $HEALTH
   login code:   $CODE          (POST /login  code=$CODE)
-  pages:        $SK/app-home.html · app-factory.html · app-onboard.html · app-practice.html · app-sandbox.html
+  pages:        $SK/app-home.html · app-settings.html · app-permissions.html · app-promises.html · app-onboard.html · app-sandbox.html
   cookie jar:   $SK/cookies.txt     (authenticated session)
   app log:      $SK/app.log
   server PID:   $APP_PID            (LEFT RUNNING)
 
 Drive more:
-  curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'What your assistant knows'
+  curl -sb $SK/cookies.txt $BASEURL/app/assistant/knowledge | grep -o 'What your assistant knows'
   curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Inbox'
 
 Stop everything:

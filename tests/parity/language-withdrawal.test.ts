@@ -121,7 +121,7 @@ describe('0163 · Today and the assistant\'s page show it while it stands', () =
     it(`${l} · the levels and the screen below them list it — with no level ever chosen, and with the level still in force`, () => {
       for (const e of [{ ...base, stepped: open }, { ...base, stepped: open, chosen: { level: 'sells' as const, at } }]) {
         expect(withoutIsolates(renderEmployee(e, l, null))).toContain(row);
-        expect(withoutIsolates(renderEmployeeScreen('alone', e, l, null))).toContain(row);
+        expect(withoutIsolates(renderEmployee(e, l, null))).toContain(row);
       }
     });
     it(`${l} · lifted, it is gone`, () => {

@@ -194,8 +194,12 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(ready).not.toContain(esc(t('en', 'runbook.deploy.title')));
     expect(ready).not.toContain('href="/app/settings/channels/technical"');   // phase 9: the page stays, the door goes
 
-    const tech = await get(ig, igOwner, '/app/onboarding/technical');
+    // Rule 104 — the machine room is the last section of Channels (folded), still the owner's alone.
+    const moved = await get(ig, igOwner, '/app/onboarding/technical');
+    expect([moved.statusCode, moved.headers['location']]).toEqual([302, '/app/settings/channels?open=technical#technical']);
+    const tech = await ig.inject({ method: 'GET', url: '/app/settings/channels?open=technical', headers: { cookie: igOwner } });
     expect(tech.statusCode).toBe(200);
+    expect(tech.body).toContain('id="technical" open>');
     expect(tech.body).toContain(t('en', 'meta.cred.appSecret'));
     expect(tech.body).toContain(esc(t('en', 'runbook.deploy.title')));
     expect(tech.body).toContain(esc(t('en', 'pilot.technical.title')));
@@ -206,6 +210,9 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(staff.headers['location']).toBe('/app/onboarding');
     expect(flashSaid(staff, SECRET)).toBe(t('en', 'staff.notAllowed'));
     expect(staff.body).not.toContain(t('en', 'meta.cred.appSecret'));
+    const staffChannels = await ig.inject({ method: 'GET', url: '/app/settings/channels', headers: { cookie: igStaff } });
+    expect(staffChannels.body).not.toContain('id="technical"');
+    expect(staffChannels.body).not.toContain(t('en', 'meta.cred.appSecret'));
 
     const anon = await ig.inject({ method: 'GET', url: '/app/settings/channels/technical' });
     expect(anon.statusCode).toBe(302);

@@ -59,16 +59,22 @@ describe('D · five entries', () => {
 
   it('the map gives Products its own area and keeps business, assistant and setup contexts', () => {
     const under = (hub: string) => CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
-    // The navigation block (2026-11-25): Shopify orders and payment links sit under Products; the assistant's and the
-    // books' settings under their own areas, so Settings keeps only the workspace.
-    expect(under('/app/settings/business')).toEqual(['profile','selling','hours','terms','currency','samples','data'].map(s=>'/app/settings/business/'+s));
-    expect(under('/app/settings')).toEqual(['business','channels','team','billing','personal'].map(s=>'/app/settings/'+s));
-    expect(under('/app/products')).toEqual(expect.arrayContaining(['/app/settings/business/shopify', '/app/payments/stripe']));
-    expect(under('/app/assistant')).toContain('/app/settings/assistant');
-    expect(under('/app/books')).toContain('/app/settings/books');
-    expect(under('/app/settings/personal')).toEqual(['account','notifications','language','advisor-history'].map(s=>'/app/settings/personal/'+s));
-    expect(under('/app/settings/channels')).toEqual(['whatsapp','meta','email','chat','telegram','tiktok'].map(s=>'/app/settings/channels/'+s));
-    expect(under('/app/settings/assistant')).toContain('/app/settings/assistant/words');
+    // The settings overhaul (2026-11-27, rule 104): ONE Settings area. Its menu page is the hub of every settings page:
+    // the workspace's, the connections (Shopify among them), the assistant's, the books' and your own. Payment links
+    // stay under Products; Going live stays under Assistant. Web chat, Telegram and TikTok are listed only where they
+    // can be connected, so the map does not name them.
+    expect(under('/app/settings')).toEqual([
+      ...['profile','selling','hours','currency','data','shopify'].map(s=>'/app/settings/business/'+s), '/app/settings/team', '/app/settings/billing',
+      '/app/settings/channels', ...['whatsapp','meta','email'].map(s=>'/app/settings/channels/'+s),
+      '/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises',
+      ...['country','starting-balances','accounts','invoices-out','connections','fields'].map(s=>'/app/settings/books/'+s),
+      '/app/settings/personal/account', '/app/settings/personal/notifications',
+    ]);
+    for (const gone of ['/app/settings/business', '/app/settings/personal', '/app/settings/channels', '/app/settings/assistant', '/app/books']) expect(under(gone), gone).toEqual([]);
+    expect(under('/app/products')).toContain('/app/payments/stripe');
+    expect(under('/app/products')).not.toContain('/app/settings/business/shopify');
+    expect(under('/app/assistant')).toContain('/app/settings/assistant/ready');
+    expect(under('/app/assistant')).not.toContain('/app/settings/assistant');
     expect(under('/app/assistant')).toContain('/app/assistant/knowledge');
     expect(under('/app/products')).toContain('/app/products/add');
     // and Settings itself is a nav entry now, not somebody's contextual route
@@ -83,14 +89,19 @@ describe('D · five entries', () => {
     expect(hubFor('/app/products/abc', 'x')).toBe('products');
     expect(hubFor('/app/settings', 'x')).toBe('settings');
     expect(hubFor('/app/calendar', 'x')).toBe('home');
-    // The navigation block (2026-11-25) — the assistant's settings, and the pages reached from them, sit under the
-    // assistant's own area (they sat under Settings since the advisor run).
-    expect(hubFor('/app/settings/assistant', 'x')).toBe('assistant');
-    expect(hubFor('/app/settings/assistant#reply-types', 'x')).toBe('assistant');
+    // The settings overhaul (2026-11-27, rule 104) — every setting lights Settings, the assistant's and the books' too
+    // (the navigation block had put them under Assistant and Books). What is not a setting stays where it was: Going
+    // live under Assistant, the monthly report under Reports.
+    expect(hubFor('/app/settings/assistant', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/assistant#reply-types', 'x')).toBe('settings');
     expect(hubFor('/app/assistant/knowledge', 'x')).toBe('assistant');
-    expect(hubFor('/app/settings/assistant/words', 'x')).toBe('assistant');
-    expect(hubFor('/app/settings/books/tax', 'x')).toBe('books');
-    expect(hubFor('/app/settings/business/shopify', 'x')).toBe('products');
+    expect(hubFor('/app/settings/assistant/words', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/assistant/ready', 'x')).toBe('assistant');
+    expect(hubFor('/app/settings/assistant/month', 'x')).toBe('reports');
+    expect(hubFor('/app/settings/books/tax', 'x')).toBe('settings');
+    expect(hubFor('/app/settings/books', 'x')).toBe('settings');
+    expect(hubFor('/app/books/advanced/entries', 'x')).toBe('books');
+    expect(hubFor('/app/settings/business/shopify', 'x')).toBe('settings');
     expect(hubFor('/app/payments/stripe', 'x')).toBe('products');
     expect(hubFor('/app/assistant/practice', 'x')).toBe('assistant');
     expect(hubFor('/app/advisor', 'x')).toBe('ask'); // the navigation block: Ask Nomi has its own slot
@@ -168,7 +179,7 @@ describe('D · the Today card', () => {
 describe('D · the doors moved, the pages did not', () => {
   it('phase 7 · Setup holds getting started, going live, alerts, the language, people, sign-in, billing, data — and none of the business', () => {
     const html = withWorkspace(facts(), () => renderSetup({ people: 3 }, 'en', null));
-    for (const href of ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/language',
+    for (const href of ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/account#language',
       '/app/settings/team', '/app/settings/personal/account', '/app/settings/billing', '/app/settings/business/data'])
       expect(html).toContain(`href="${href}"`);
     // the business has ONE home, My business — channels included
@@ -187,7 +198,7 @@ describe('D · the doors moved, the pages did not', () => {
     // phase 7 — a menu: no line under a row that its value already says
     expect(html).not.toContain('class="sr-desc"');
     expect(rows['/app/onboarding']).toBeDefined();
-    expect(rows['/app/settings/personal/language']).toContain('<bdi>English</bdi>');
+    expect(rows['/app/settings/personal/account#language']).toContain('<bdi>English</bdi>');
     expect(rows['/app/settings/team']).toContain('1 person');
     expect(html).not.toContain('method="post" action="/app/settings"');   // the form lives on its own page
     expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ people: 4 }, 'en', null)))

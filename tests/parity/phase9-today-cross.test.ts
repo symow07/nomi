@@ -173,8 +173,10 @@ describe('Phase 9 · the shell', () => {
       ['/app/settings/channels/technical','/app/settings/channels','settingsArea.channels'],
       ['/app/onboarding/practice','/app/assistant/practice','assistantArea.practice'],
       ['/app/onboarding/activity','/app/results','nav.reports'],
+      // Rule 104: a person's Ask Nomi history left the Settings menu; it is reached from Ask Nomi, and leads back to it.
+      ['/app/settings/personal/advisor-history','/app/assistant/ask','assistantArea.ask'],
     ];
-    const entries = ['/app/settings/business/hours','/app/settings/assistant/words','/app/settings/assistant','/app/settings/team','/app/settings/business','/app/knowledge','/app/replies','/app/labels','/app/surveys','/app/guide'];
+    const entries = ['/app/settings/business/hours','/app/settings/assistant/words','/app/settings/assistant','/app/settings/team','/app/settings/business/profile','/app/knowledge','/app/replies','/app/labels','/app/surveys','/app/guide'];
     for (const path of entries) {
       const h = page('en', path, '<h1 class="page">x</h1>');
       expect(h.slice(h.indexOf('<main'), h.indexOf('</main>')), path).not.toContain('class="back"');

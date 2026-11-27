@@ -19,7 +19,7 @@ const BIZ = `c6060000-0000-4000-8000-${RUN}0001`;
 const SECRET = 'a-test-session-secret-of-sufficient-length';
 const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
 const PAGES = ['/app/books/spending', '/app/books/invoices/new', '/app/books/advanced/entries/new', '/app/books/bank', '/app/books/reports/cash',
-  '/app/settings/books/tax', '/app/settings/books/starting-balances', '/app/settings/books/accounts'];
+  '/app/settings/books/country', '/app/settings/books/starting-balances', '/app/settings/books/accounts'];
 
 d('Block 5 check 6 · option words isolated on Arabic Books pages (requires DATABASE_URL + MIGRATE_DATABASE_URL)', { timeout: 120_000 }, () => {
   let db: import('../../src/db/client.js').Db;

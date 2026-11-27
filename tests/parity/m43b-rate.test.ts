@@ -5,9 +5,11 @@ import {
   convertMoney, rateFor, validateRate, type OwnerRate,
 } from '../../src/core/commerce/exchange.js';
 import { usd, type Money } from '../../src/core/types/money.js';
-import { renderRate, type RateView } from '../../src/api/web/settings.js';
+import { renderCurrency, type RateView } from '../../src/api/web/settings.js';
+// Rule 104 — the rate is a section of the Currency page (it was a page of its own); the page is what is drawn here.
+const renderRate = (v: RateView, locale: Locale, _flash: null): string => renderCurrency(v, null, locale, null);
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { moneyOf } from '../../src/core/types/money.js';
 import { decimal } from '../../src/core/types/decimal.js';
@@ -137,8 +139,10 @@ describe('M43b · the surface', () => {
       const html = renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, locale, null);
       const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
       expect(visible, locale).toContain(t(locale, 'rate.empty', { to: 'CNY' }));
-      expect(visible, locale).toContain(t(locale, 'rate.add.button'));
-      expect(html).toContain('action="/app/settings/rate"');
+      // Rule 104 — the rate is a field of the Currency page, saved by the page's ONE Save.
+      expect(visible, locale).toContain(t(locale, 'autonomy.save'));
+      expect(html).toContain('<form method="post" action="/app/settings/business/currency" class="set-form" data-save id="currency-form">');
+      expect(html).toContain('<input id="rt-rate" name="rate" inputmode="decimal"');
     }
   });
 
@@ -159,7 +163,8 @@ describe('M43b · the surface', () => {
     // Phase 7 — a row of My business › How you sell.
     expect(settings).toContain("href: '/app/settings/rate'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("app.get('/app/settings/business/currency'");
+    expect(app).toContain('app.get(CURRENCY_PAGE, authed(');
+    expect(app).toMatch(/app\.post\(CURRENCY_PAGE, async \(req, reply\) => \{\s+const s = await ownerOnly\(req, reply, 'price_rules', CURRENCY_PAGE\);/);
     expect(app).toContain("app.post('/app/settings/rate'");
   });
 

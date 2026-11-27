@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { blockingClosure, validateClosure, type FactoryClosure } from '../../src/core/commerce/closures.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { guardNumerals } from '../../src/core/safety/numerals.js';
-import { renderClosures, type ClosureView } from '../../src/api/web/settings.js';
+import { renderHours, type ClosureView } from '../../src/api/web/settings.js';
+import type { Locale } from '../../src/core/owner/i18n/locale.js';
+// Rule 104 — the closures are a section of Hours and closures (they were a page of their own).
+const renderClosures = (v: ClosureView, locale: Locale, _flash: null): string => renderHours({ workingHours: null, zone: null, closures: v.closures }, locale, null);
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { product, tiers, policy, emptyState } from './fixtures.js';
@@ -187,6 +190,8 @@ describe('M44 · the surface', () => {
     const html = renderClosures(view, 'en', null);
     expect(html).toContain('春节');
     expect(html).toContain('/app/settings/closures/c1/remove');
+    // Rule 104 — Remove is the row's own act, sent at once, and asks first.
+    expect(html).toMatch(/<form method="post" action="\/app\/settings\/closures\/c1\/remove" class="set-act"><button class="btn danger" type="submit"[^>]*onclick="return confirm\(this\.dataset\.confirm\)"/);
     expect(html).toContain('action="/app/settings/closures"');
   });
 
@@ -222,7 +227,7 @@ describe('M44 · the surface', () => {
     // Phase 7 — a row of My business › How you sell.
     expect(settings).toContain("href: '/app/settings/closures'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("app.get('/app/settings/business/hours'");
+    expect(app).toContain('app.get(HOURS_PAGE, authed('); // rule 104: Hours and closures, the page's own address
     expect(app).toContain("app.post('/app/settings/closures'");
     expect(app).toContain("app.post('/app/settings/closures/:id/remove'");
   });

@@ -197,8 +197,12 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     expect(res.body).toContain('Ahmed');
     expect(res.body).toContain('can you send a sample first');
     // No name has been confirmed on this tenant, so the page says "your assistant".
-    const policy = await app.inject({method: 'GET', url: '/app/settings/business/samples', headers: {cookie}});
+    // Rule 104 — the sample policy is a section of How you sell; its older address opens it there.
+    const moved = await app.inject({method: 'GET', url: '/app/settings/business/samples', headers: {cookie}});
+    expect([moved.statusCode, moved.headers['location']]).toEqual([302, '/app/settings/business/selling#samples']);
+    const policy = await app.inject({method: 'GET', url: '/app/settings/business/selling', headers: {cookie}});
     expect(policy.statusCode).toBe(200);
+    expect(policy.body).toContain('<section class="set-sec" id="samples">');
     expect(policy.body).toContain(esc(t('en', 'samples.empty')));
   });
 

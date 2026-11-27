@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import {
   guardForbidden, effectiveForbidden, findForbidden, FORBIDDEN_FLOOR,
 } from '../../src/core/safety/forbiddenWords.js';
-import { renderForbidden, type ForbiddenView } from '../../src/api/web/settings.js';
+import { forbiddenSection, type ForbiddenView } from '../../src/api/web/settings.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -151,7 +151,7 @@ describe('M37.5 · the owner surface', () => {
   };
 
   it('shows her list, and the floor she cannot switch off', () => {
-    const html = renderForbidden(view, 'en', null);
+    const html = forbiddenSection(view, 'en');
     expect(html).toContain('Guangzhou Textile');
     expect(html).toContain(t('en', 'forbidden.floor.title'));
     // The floor is rendered, not hidden: a guarantee she cannot see is one she
@@ -160,7 +160,7 @@ describe('M37.5 · the owner surface', () => {
   });
 
   it('offers add and remove, and no way to remove a floor term', () => {
-    const html = renderForbidden(view, 'en', null);
+    const html = forbiddenSection(view, 'en');
     expect(html).toContain('action="/app/settings/forbidden"');
     expect(html).toContain('/app/settings/forbidden/a1b2/remove');
     // The floor list carries no form at all.
@@ -170,17 +170,22 @@ describe('M37.5 · the owner surface', () => {
 
   it('is reachable from the assistant\'s page (D), and registered as a route', async () => {
     const settings = await readFile(new URL('../../src/api/web/employee.ts', import.meta.url), 'utf8');
-    // THE WARMTH RUN, phase 7 — the door is a row of the assistant's menu now.
-    expect(settings).toContain("{ href: '/app/settings/forbidden', icon: 'nope', label: t(locale, 'forbidden.title')");
+    // Rule 104 — the words are a section of Settings › Assistant › Promises and words, a row of the Settings menu;
+    // the assistant's page no longer carries a door of its own, and both old addresses lead to the section.
+    expect(settings).not.toContain("href: '/app/settings/forbidden'");
+    const nav = await readFile(new URL('../../src/api/web/settingsNavigation.ts', import.meta.url), 'utf8');
+    expect(nav.replace(/\s/g, '')).toContain("'/app/settings/forbidden':'/app/settings/assistant/promises#words'");
+    expect(nav.replace(/\s/g, '')).toContain("'/app/settings/assistant/words':'/app/settings/assistant/promises#words'");
+    expect(forbiddenSection(view, 'en')).toContain('<section class="set-sec" id="words">');
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("app.get('/app/settings/assistant/words'");
+    expect(app).toContain('forbiddenSection(');
     expect(app).toContain("app.post('/app/settings/forbidden'");
     expect(app).toContain("app.post('/app/settings/forbidden/:id/remove'");
   });
 
   it('empty state names the next action, in every locale', () => {
     for (const locale of LOCALES) {
-      const html = renderForbidden({ own: [], floor: [...FORBIDDEN_FLOOR] }, locale, null);
+      const html = forbiddenSection({ own: [], floor: [...FORBIDDEN_FLOOR] }, locale);
       const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
       expect(visible).toContain(t(locale, 'forbidden.empty'));
       expect(visible).toContain(t(locale, 'forbidden.add.button'));

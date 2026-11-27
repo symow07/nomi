@@ -138,10 +138,17 @@ d('Audit batch 4 · user-facing defects (requires DATABASE_URL + MIGRATE_DATABAS
   it('B18 · an accountant changes their own password and language', async () => {
     const account = await get(accountantCookie, '/app/settings/personal/account');
     expect(account.statusCode).toBe(200);
-    expect(account.body).toContain('href="/app/settings/personal/language"');
+    // Rule 104 — the language is on this page (one select in its one Save); its older address sends here.
+    expect(account.body).toContain('<select id="acc-language" name="language">');
+    expect(account.body).toContain('action="/app/settings/personal/account"');
     expect(account.body).toContain('data-nav="account"');
     expect(account.body).not.toContain('data-nav="inbox"');
-    expect((await get(accountantCookie, '/app/settings/personal/language')).statusCode).toBe(200);
+    const moved = await get(accountantCookie, '/app/settings/personal/language');
+    expect([moved.statusCode, moved.headers['location']]).toEqual([302, '/app/settings/personal/account#language']);
+    // The page's one Save is theirs too: the language alone, the password left as it is (it was "the books only").
+    const saved = await post(accountantCookie, '/app/settings/personal/account', { current: '', next: '', language: 'fr' });
+    expect([saved.statusCode, saved.headers['location']]).toEqual([302, '/app/settings/personal/account']);
+    expect(String(saved.headers['set-cookie'])).toMatch(/=fr; Path=\//);
     // The password form posts and comes back to their own page (it was sent to the books, "the books only").
     const pw = await post(accountantCookie, '/app/settings/account/password', { current: 'x', next: 'y' });
     expect([pw.statusCode, pw.headers['location']]).toEqual([302, '/app/settings/account']);

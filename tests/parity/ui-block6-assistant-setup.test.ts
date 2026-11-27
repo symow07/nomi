@@ -1,17 +1,19 @@
-// UI Block 6 · F32 — the assistant's settings page: Stop in its own named panel, after the levels and apart from them;
-// each folded decision says where it stands in its summary; a link opens and focuses its fold, with script and without;
-// a row's own action (Turn on, Wait for my OK, Let it go alone) and Stop are not ink fills. What each button does, who
-// may press it and what it asks first are unchanged — those stay pinned in w5-alone-now, follow-ups-page and others.
+// UI Block 6 · F32, as the settings overhaul (rule 104) redrew it — Settings › Assistant › Reply permissions: Stop at the
+// top, apart from the levels; every decision in view and saying where it stands (nothing folded); a link names a part
+// of the page by its id; a row's own action (Wait for my OK, Send without me) and Stop are not ink fills. What each
+// button does, who may press it and what it asks first are unchanged — those stay pinned in w5-alone-now,
+// follow-ups-page and others.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { renderEmployee, setupFoldOf, SETUP_FOLDS, type EmployeeProfile } from '../../src/api/web/employee.js';
-import { renderFollowUpRule } from '../../src/api/web/followUps.js';
+import { renderEmployee, PERMISSIONS_SAVE, type EmployeeProfile } from '../../src/api/web/employee.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, withAssistantName } from '../../src/api/web/say.js';
-import { esc } from '../../src/api/web/layout.js';
+import { esc, ASSISTANT_HOME } from '../../src/api/web/layout.js';
+import { SETTINGS_MOVES } from '../../src/api/web/settingsNavigation.js';
 import { SETTINGS_AREA_CSS } from '../../src/api/web/settingsAreaStyle.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { withoutIsolates } from './isolates.js';
+import { buttonsAndDoors } from './buttons-and-doors.js';
 
 const set: EmployeeProfile = {
   knows: 4, assistantNamed: true, spotChecks: [], hireDate: new Date('2026-07-09T00:00:00Z'), stage: 'partial',
@@ -25,72 +27,75 @@ const set: EmployeeProfile = {
   growth: [], promoted: true, conditions: [{ cond: 'passed_spotcheck', met: true }, { cond: 'learned_correction', met: false }], products: 3, words: 0, answering: true,
   chosen: null, pendingName: 'Lily',
 };
-const page = (e: EmployeeProfile, l: (typeof LOCALES)[number], owner = true, open: ReturnType<typeof setupFoldOf> = null) =>
-  withAssistantName('Lily', () => renderEmployee(e, l, null, undefined, { isOwner: owner }, true, open));
+const page = (e: EmployeeProfile, l: (typeof LOCALES)[number], owner = true) =>
+  withAssistantName('Lily', () => renderEmployee(e, l, null, { isOwner: owner }, { followUps: { enabled: true, delayDays: 3, wording: 'Hello' } }));
 const css = SETTINGS_AREA_CSS.replace(/\s+/g, ' ');
 
-describe('UI Block 6 · F32 — the assistant\'s settings page', () => {
-  it('the way to Stop is one line after the levels, outside them, before the folds; owner only, while answering', () => {
+describe('UI Block 6 · F32 — the assistant\'s settings page (Reply permissions)', () => {
+  it('Stop is at the top, before the levels and outside them; it asks first; owner only, while answering', () => {
     for (const l of LOCALES) {
       const html = page(set, l);
-      const levels = html.indexOf('<section class="block level-control"');
+      const levels = html.indexOf('<section class="set-sec" id="on-her-own">');
       const levelsEnd = html.indexOf('</section>', levels);
-      // The text cleanup (2026-11-26, the owner's approval): the Stop itself is drawn once, on Going live.
-      const panel = html.indexOf('<p class="stop-here" id="stop">');
-      expect(levels, l).toBeGreaterThan(0);
-      expect(panel, l).toBeGreaterThan(levelsEnd);
+      const panel = html.indexOf('<div class="set-note" id="stop">');
+      expect(panel, l).toBeGreaterThan(0);
+      expect(panel, l).toBeLessThan(levels);
       expect(html.slice(levels, levelsEnd), l).not.toContain('stop-assistant');
-      const stop = html.slice(panel, html.indexOf('</p>', panel));
-      expect(stop, l).toContain('href="/app/settings/assistant/ready#stop"');
-      expect(stop, l).toContain(esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stop'))));
-      expect(html, l).not.toContain('action="/app/business/stop-assistant"');
-      // …and before the folded decisions.
-      expect(panel, l).toBeLessThan(html.indexOf('<details class="sa-subject"'));
-      expect(page(set, l, false), l).not.toContain('stop-here');
-      expect(page({ ...set, stopped: true }, l), l).not.toContain('stop-here');
-      expect(page({ ...set, answering: false }, l), l).not.toContain('stop-here');
+      const stop = html.slice(panel, html.indexOf('</div>', panel));
+      expect(stop, l).toContain('<form method="post" action="/app/business/stop-assistant" class="set-act">');
+      expect(stop, l).toContain('<input type="hidden" name="from" value="employee" />');
+      expect(stop, l).toContain(`onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stopConfirm')))}"`);
+      expect(stop, l).toContain(`>${esc(withAssistantName('Lily', () => t(l, 'assistant.stop.action.stop')))}</button>`);
+      expect(html.match(/action="\/app\/business\/stop-assistant"/g), l).toHaveLength(1);
+      // Stop is its own form: it is not a field of the page's Save.
+      const save = html.indexOf(`<form method="post" action="${PERMISSIONS_SAVE}"`);
+      expect(panel, l).toBeLessThan(save);
+      // Nobody but the owner, and only while there is something to stop.
+      expect(page(set, l, false), l).not.toContain('stop-assistant');
+      expect(page({ ...set, answering: false }, l), l).not.toContain('stop-assistant');
+      // Stopped: the page says so in the same place, and the way to start again is Going live's.
+      const stopped = page({ ...set, stopped: true }, l);
+      expect(stopped, l).not.toContain('stop-assistant');
+      const said = stopped.slice(stopped.indexOf('<p class="set-note" id="stop">'), stopped.indexOf('</p>', stopped.indexOf('<p class="set-note" id="stop">')));
+      expect(said, l).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
+      expect(said, l).toContain('href="/app/settings/assistant/ready#stop"');
+      expect(buttonsAndDoors(html), l).toEqual([]);
     }
   });
-  it('each folded decision says its name and where it stands; the link target is inside the fold and can take focus', () => {
+  it('every decision is in view and says where it stands: nothing is folded', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(page(set, l));
-      for (const [id, name, now] of [
-        ['progress', t(l, 'employee.promo.title'), t(l, 'nav.setup.progress', { done: 1, total: 2 })],
-        ['reply-types', t(l, 'her.handles.title'), null],
-      ] as const) {
-        const at = html.indexOf(`<div class="sa-body" id="${id}" tabindex="-1">`);
-        expect(at, `${l} ${id}`).toBeGreaterThan(0);
-        const fold = html.slice(html.lastIndexOf('<details class="sa-subject"', at), at);
-        expect(fold, `${l} ${id}`).not.toContain(' open');
-        expect(fold, `${l} ${id}`).toContain(`<span class="sa-sname">${esc(withoutIsolates(name))}</span>`);
-        const said = /<span class="sa-now">([^<]+)<\/span>/.exec(fold)?.[1] ?? '';
-        expect(said.length, `${l} ${id}`).toBeGreaterThan(0);
-        if (now) expect(said, `${l} ${id}`).toBe(esc(withoutIsolates(now)));
-      }
-      expect(html).not.toMatch(/<details[^>]*id="(?:progress|reply-types)"/);
-      const rule = renderFollowUpRule(l, { enabled: true, delayDays: 3, wording: 'Hello' }, true);
-      expect(rule, l).toContain('<details class="sa-subject follow-up-settings">');
-      expect(rule, l).toContain('<div class="sa-body" id="follow-ups" tabindex="-1">');
-      const ruleNow = rule.slice(rule.indexOf('<span class="sa-now">'), rule.indexOf('</summary>'));
-      expect(ruleNow, l).toContain(esc(t(l, 'followUp.on')));
-      expect(withoutIsolates(ruleNow), l).toMatch(/3/);
-      expect(ruleNow, l).toContain(' · ');
+      expect(html, l).not.toContain('<details');
+      // The kinds of reply: each a row with its state in words.
+      const kinds = html.slice(html.indexOf('<section class="set-sec" id="reply-types">'), html.indexOf('</section>', html.indexOf('id="reply-types"')));
+      expect(kinds, l).toContain(`<h2 class="set-h">${esc(withoutIsolates(t(l, 'her.handles.title')))}</h2>`);
+      expect(kinds.match(/<tr class="tm[^"]*">/g)?.length, l).toBe(4 + 4);   // the four kinds set, and the four that always wait
+      // What comes next: now, in the level's own words.
+      const progress = /<p class="set-help" id="progress">([\s\S]*?)<\/p>/.exec(kinds)?.[1] ?? '';
+      expect(progress, l).toContain(esc(withoutIsolates(t(l, 'employee.promo.current'))));
+      expect(progress, l).toContain(esc(withoutIsolates(t(l, 'employee.promo.done'))));
+      for (const c of ['passed_spotcheck', 'learned_correction'] as const)
+        expect(kinds, `${l} ${c}`).toContain(esc(withoutIsolates(withAssistantName('Lily', () => t(l, `employee.promo.cond.${c}`)))));
+      // Follow-ups: its fields say the rule as it stands.
+      const rule = html.slice(html.indexOf('<section class="set-sec" id="follow-ups">'));
+      expect(rule, l).toContain('name="enabled" value="1" checked');
+      expect(rule, l).toContain('<option value="3" selected>');
+      expect(rule, l).toContain('>Hello</textarea>');
     }
   });
-  it('a fold a link names is open on the server (?open=), and only that one; anything else opens nothing', () => {
-    expect(SETUP_FOLDS).toEqual(['progress', 'reply-types', 'follow-ups']);
-    expect(setupFoldOf('reply-types')).toBe('reply-types');
-    for (const bad of ['', 'stop', 'progress#x', ['progress'], undefined]) expect(setupFoldOf(bad)).toBeNull();
-    const html = page(set, 'en', true, 'reply-types');
-    expect(html.match(/<details class="sa-subject" open>/g)?.length).toBe(1);
-    expect(html.indexOf('<details class="sa-subject" open>')).toBe(html.lastIndexOf('<details class="sa-subject"', html.indexOf('id="reply-types"')));
-    expect(renderFollowUpRule('en', { enabled: false, delayDays: 2, wording: '' }, true, false, true)).toContain('<details class="sa-subject follow-up-settings" open>');
-    expect(renderFollowUpRule('en', { enabled: false, delayDays: 2, wording: '' }, true, true)).toContain('<details class="sa-subject follow-up-settings" open>');
+  it('a link names a part of the page by its id; the folds\' old addresses arrive at those parts', () => {
+    const html = page(set, 'en');
+    for (const id of ['stop', 'on-her-own', 'reply-types', 'progress', 'follow-ups']) expect(html.match(new RegExp(`id="${id}"`, 'g')), id).toHaveLength(1);
+    expect(SETTINGS_MOVES[`${ASSISTANT_HOME}/replies`]).toBe(`${ASSISTANT_HOME}#reply-types`);
+    expect(SETTINGS_MOVES[`${ASSISTANT_HOME}/one-kind`]).toBe(`${ASSISTANT_HOME}#reply-types`);
+    expect(SETTINGS_MOVES[`${ASSISTANT_HOME}/next`]).toBe(`${ASSISTANT_HOME}#progress`);
+    expect(SETTINGS_MOVES[`${ASSISTANT_HOME}/alone`]).toBe(ASSISTANT_HOME);
+    // No fold is left for `?open=` to open: the route reads no such thing, and an old link with it still lands.
     const app = readFileSync('src/api/web/app.ts', 'utf8');
-    expect(app).toContain('const open = setupFoldOf((req.query as { open?: unknown }).open);');
-    expect(app).toContain("renderEmployee(e, locale, flash, ctx, personOf(s), true, open)");
+    expect(app).not.toContain('setupFoldOf');
+    expect(app).toContain("title: t(locale, 'settingsArea.permissions'), active: 'settings', bodyHtml: await permissionsBody(s, locale, takeFlash(req, reply)),");
   });
-  it('with script, a link to a folded part opens the fold and focuses its summary, on arrival and on a later #link', () => {
+  it('with script, a link to a folded part elsewhere still opens its fold and focuses its summary', () => {
     expect(LIVE_SCRIPT).toContain('function deepLinks()');
     expect(LIVE_SCRIPT).toMatch(/\n {2}deepLinks\(\);\n/);
     const fn = LIVE_SCRIPT.slice(LIVE_SCRIPT.indexOf('function deepLinks()'), LIVE_SCRIPT.indexOf('/* The native summary still opens'));
@@ -98,11 +103,10 @@ describe('UI Block 6 · F32 — the assistant\'s settings page', () => {
     // Only a settings decision's fold or the knowledge page's add actions: a menu that folds is never opened by a link.
     expect(fn).toContain("at.closest('details.sa-subject,details.ak-add')");
   });
-  it('a row\'s own action and Stop are outlined, not ink fills; the fold\'s summary is a 44 px target; its focus is an ink ring', () => {
-    expect(css).toContain('.settings-area :is(.certlist,.actrow) .btn{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}');
+  it('a row\'s own action and Stop are outlined, not ink fills; a switch is a 44 px target on a phone', () => {
+    expect(css).toContain('.settings-area .as-act .btn,.settings-area .set-note .set-act .btn,.settings-area .set-rows>.set-act .btn,.settings-area .set-add .btn{background:transparent;color:var(--color-ink);border:1px solid var(--color-ink);}');
     expect(css).toContain('.settings-area .btn.danger{background:transparent;');
-    expect(css).toMatch(/\.sa-subject>summary\{min-height:44px;/);
-    expect(css).toContain('.sa-body:focus-visible{outline:2px solid var(--color-ink);outline-offset:2px;}');
+    expect(css).toMatch(/@media\(max-width:720px\)\{\.set-switch\{min-block-size:44px;min-inline-size:44px;\}/);
     expect(css).not.toContain('.stop-panel');
   });
 });

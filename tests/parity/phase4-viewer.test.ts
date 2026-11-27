@@ -3,7 +3,9 @@ import { usd } from '../../src/core/types/money.js';
 import {
   renderProductList, renderProductDetail, renderAddForm, type ProductListItem, type ProductDetail,
 } from '../../src/api/web/products.js';
-import { renderRate, renderTerms, renderSamples } from '../../src/api/web/settings.js';
+import { renderCurrency, sellingTermsSections, type RateView } from '../../src/api/web/settings.js';
+// Rule 104 — the rate is a section of Currency; the terms and the sample policy are sections of How you sell.
+const renderRate = (v: RateView, locale: 'en', _flash: null, viewer: Viewer): string => renderCurrency(v, { currency: 'USD', fixed: true }, locale, null, viewer);
 import { renderPilotReadiness, type PilotReadiness } from '../../src/api/web/pilot.js';
 import { OWNER_VIEW, type Viewer } from '../../src/core/conversation/people.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -43,9 +45,8 @@ const PAGES: ReadonlyArray<readonly [string, (v: Viewer) => string, RegExp]> = [
   ['product detail', (v) => renderProductDetail(detail, 'en', null, {}, {}, v), /action="\/app\/products\/p1\/edit"/],
   ['product detail, no price', (v) => renderProductDetail({ ...detail, tiers: [] }, 'en', null, {}, {}, v), /action=|href="\/app\/products\/add"/],
   ['add products', (v) => renderAddForm('en', v), /action="\/app\/products\/add\/(review|photo)"/],
-  ['rate', (v) => renderRate({ current: { from: 'USD', to: 'CNY', rate: decimal('7.15'), statedAt: NOW }, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null, v), /action="\/app\/settings\/rate"/],
-  ['terms', (v) => renderTerms({ terms: null }, 'en', null, v), /action="\/app\/settings\/terms"/],
-  ['samples', (v) => renderSamples({ policy: null, waiting: [] }, 'en', null, NOW, v), /action="\/app\/settings\/samples"/],
+  ['rate', (v) => renderRate({ current: { from: 'USD', to: 'CNY', rate: decimal('7.15'), statedAt: NOW }, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null, v), /action="\/app\/settings\/business\/currency"/],
+  ['terms and samples', (v) => sellingTermsSections({ terms: null }, { policy: null, waiting: [] }, 'en', v), /action="\/app\/settings\/business\/selling"/],
   ['getting ready', (v) => renderPilotReadiness(pilot, 'en', null, v), /action="\/app\/onboarding\/|href="\/app\/business\/prices"/],
 ];
 

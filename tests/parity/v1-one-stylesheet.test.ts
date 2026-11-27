@@ -205,6 +205,10 @@ describe('V1 · the components page', () => {
     'timeline', 'msg inbound', 'msg outbound', 'bubble', 'proposed', 'ts muted',
     'stats', 'stat', 'stated-now', 'card', 'block', 'dhead', 'facts', 'frow', 'flabel',
     'sub', 'muted', 'note', 'subline',
+    // The settings overhaul (rule 104): the one settings page template, every part and state.
+    'lede set-lede', 'set-note', 'set-form', 'data-save', 'set-sec', 'set-rows', 'set-need', 'fielderr', 'set-save', 'type="reset"',
+    'set-act', 'data-confirm', 'set-switch', 'aria-checked="true"', 'aria-checked="false"', 'role="switch"',
+    'set-list', 'data-list-q', 'data-row', 'data-list-more', 'set-pick', '<datalist', 'set-danger', 'set-danger-row',
   ];
 
   it('shows every family, in every locale, and carries no stylesheet of its own', () => {

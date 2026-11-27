@@ -21,7 +21,7 @@ describe('approved owner navigation', () => {
     }
   });
   it('selects the correct area from nested and transitional routes', () => {
-    for (const [path, area] of Object.entries({ '/app/calendar?day=2026-11-05': 'home', '/app/results': 'reports', '/app/results/month': 'reports', '/app/settings/assistant/month': 'reports', '/app/get-started': 'home', '/app/customers/c1': 'customers', '/app/products/p1': 'products', '/app/books/invoices/i1': 'books', '/app/advisor': 'ask', '/app/assistant/ask': 'ask', '/app/knowledge': 'assistant', '/app/settings/books/tax': 'books', '/app/payments/stripe': 'products' })) {
+    for (const [path, area] of Object.entries({ '/app/calendar?day=2026-11-05': 'home', '/app/results': 'reports', '/app/results/month': 'reports', '/app/settings/assistant/month': 'reports', '/app/get-started': 'home', '/app/customers/c1': 'customers', '/app/products/p1': 'products', '/app/books/invoices/i1': 'books', '/app/advisor': 'ask', '/app/assistant/ask': 'ask', '/app/knowledge': 'assistant', '/app/settings/books/tax': 'settings', '/app/books/advanced/entries': 'books', '/app/settings/business/shopify': 'settings', '/app/payments/stripe': 'products' })) {
       expect(hubFor(path, 'settings'), path).toBe(area);
     }
   });
@@ -32,10 +32,14 @@ describe('approved owner navigation', () => {
     for (const href of ['/app', '/app/calendar', '/app/get-started']) expect(html).toContain(`href="${href}"`);
     expect(html).toMatch(/href="\/app\/calendar"[^>]*aria-current="page"/);
   });
-  it('keeps the assistant\'s daily work and its configuration in Assistant; Settings keeps only the workspace', () => {
-    // The navigation block (2026-11-25, the owner's decision): the assistant's settings moved into its own area.
-    for (const path of ['/app/settings/assistant/checks', '/app/settings/assistant/history', '/app/settings/assistant/alone', '/app/settings/assistant']) {
+  it('keeps the assistant\'s daily work in Assistant; every setting, the assistant\'s too, in Settings', () => {
+    // The settings overhaul (2026-11-27, the owner's decision; rule 104): ONE Settings area. The assistant's daily work
+    // (the older addresses of Review and Activity) and Going live, a checklist, stay in its own area.
+    for (const path of ['/app/settings/assistant/checks', '/app/settings/assistant/history', '/app/settings/assistant/ready']) {
       expect(hubFor(path, 'settings'), path).toBe('assistant');
+    }
+    for (const path of ['/app/settings/assistant/alone', '/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises', '/app/settings/assistant/words']) {
+      expect(hubFor(path, 'assistant'), path).toBe('settings');
     }
     expect(hubFor('/app/settings/business/hours', 'assistant')).toBe('settings');
   });

@@ -108,8 +108,12 @@ d('M37.5 · her forbidden list, end to end (requires DATABASE_URL)', () => {
   });
 
   it('the page shows her term and the floor', async () => {
-    const res = await app.inject({ method: 'GET', url: '/app/settings/assistant/words', headers: { cookie } });
+    // Rule 104 — the words are a section of Promises and words; the older address arrives there.
+    const old = await app.inject({ method: 'GET', url: '/app/settings/assistant/words', headers: { cookie } });
+    expect([old.statusCode, old.headers['location']]).toEqual([302, '/app/settings/assistant/promises#words']);
+    const res = await app.inject({ method: 'GET', url: '/app/settings/assistant/promises', headers: { cookie } });
     expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<section class="set-sec" id="words">');
     expect(res.body).toContain('Guangzhou Textile');
     expect(res.body).toContain('Rude words and insults, kept out of every reply');
   });
@@ -157,7 +161,7 @@ d('M37.5 · her forbidden list, end to end (requires DATABASE_URL)', () => {
       { term: 'Guangzhou Textile', archived: true },
       { term: 'Guangzhou Textile', archived: false },
     ]);
-    const page = await app.inject({ method: 'GET', url: '/app/settings/assistant/words', headers: { cookie } });
+    const page = await app.inject({ method: 'GET', url: '/app/settings/assistant/promises', headers: { cookie } });
     expect(page.body).toContain('they copied our catalogue');
   });
 

@@ -4,7 +4,8 @@ import { BOOKS_COUNTRIES, COUNTRY_PACKS, US_STATES, isBooksCountry, type BooksCo
 import type { CountryBooksView } from '../../db/booksCountry.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
-import { fieldRow, rowsCard, saveBar } from './rows.js';
+import { fieldRow } from './rows.js';
+import { pageHead, setSection, setNotice, saveForm, saveActs } from './settingsPage.js';
 import * as show from './values.js';
 
 /**
@@ -65,12 +66,12 @@ export function renderBooksCountry(locale: Locale, v: CountryBooksView, form: Co
     ...identifierRow(locale, pack?.country ?? null, v, form),
   ];
   const statesBlock = v.country === 'US' && pack ? renderStateTaxes(locale, states) : '';
-  return `<h1 class="page">${esc(t(locale, 'books.country.title'))}</h1>
-    <p class="lede">${esc(t(locale, 'books.country.lede'))}</p>
-    <form method="post" action="/app/books/country" class="sform">
-      ${rowsCard(null, rows, 'country')}
-      ${saveBar(t(locale, 'books.country.save'))}
-    </form>${statesBlock}`;
+  // Rule 104: the template. The title is the menu label; one line under it; "chosen once" and "nothing is sent to any
+  // authority" stay on the page, beside the fields they are about; ONE Save at the end of the form.
+  return pageHead(t(locale, 'books.country.nav'), t(locale, 'setBooks.country.lede'))
+    + saveForm('/app/books/country', setSection({ id: 'country', title: t(locale, 'books.country.country'),
+      rows: setNotice({ text: t(locale, 'setBooks.country.once') }) + rows.join('') }) + saveActs(locale))
+    + statesBlock;
 }
 
 function identifierRow(locale: Locale, country: BooksCountry | null, v: CountryBooksView, form: CountryForm | null): string[] {
@@ -96,31 +97,11 @@ function identifierRow(locale: Locale, country: BooksCountry | null, v: CountryB
 function renderStateTaxes(locale: Locale, states: readonly { readonly state: string; readonly rate: string }[]): string {
   const taken = new Set(states.map((s) => s.state));
   const options = US_STATES.filter((s) => !taken.has(s)).map((s) => `<option value="${s}">${s}</option>`).join('');
-  return `<section class="block" id="states">
-      <h2>${esc(t(locale, 'books.country.states'))}</h2>
-      <p>${esc(t(locale, 'books.country.statesWhy'))}</p>
-      ${states.length === 0 ? `<p class="muted">${esc(t(locale, 'books.country.noStates'))}</p>` : `<ul class="rows">${states.map((s) =>
-        `<li class="row"><span><bdi dir="ltr">${esc(s.state)}</bdi></span><span>${rateOf(locale, s.rate)}</span></li>`).join('')}</ul>`}
-      ${options ? `<form method="post" action="/app/books/country/state-tax" class="pform">
-        <label class="pq"><span>${esc(t(locale, 'books.country.state'))}</span><select name="state" required>${options}</select></label>
-        <label class="pq"><span>${esc(t(locale, 'books.country.rate'))}</span><input name="rate" inputmode="decimal" required placeholder="8.25" dir="ltr" /></label>
-        <button class="btn" type="submit">${esc(t(locale, 'books.country.addState'))}</button>
-      </form>` : ''}
-    </section>`;
-}
-
-/**
- * THE ACCOUNTS PAGE'S OWN SUBJECT (0225): which accounts hold money. Every active asset account with nothing under it,
- * a tick each (`money_<id>`: the form parser keeps the last of a repeated key, so one key per account); one Save. An
- * account the code's rules already recognise says so, and its tick changes nothing.
- */
-export function renderMoneyAccounts(locale: Locale, accounts: readonly { readonly id: string; readonly code: string; readonly name: string; readonly marked: boolean; readonly byRule: boolean }[]): string {
-  return `<div class="block" id="money">
-      <h2>${esc(t(locale, 'books.country.money'))}</h2>
-      <p>${esc(t(locale, 'books.country.moneyWhy'))}</p>
-      ${accounts.length === 0 ? `<p class="muted">${esc(t(locale, 'books.country.moneyNone'))}</p>` : `<form method="post" action="/app/books/accounts/money" class="pform">
-        <ul class="choices">${accounts.map((a) => `<li><label><input type="checkbox" name="money_${esc(a.id)}" value="1"${a.marked || a.byRule ? ' checked' : ''}${a.byRule ? ' disabled' : ''} /> <bdi dir="ltr">${esc(a.code)}</bdi> · <bdi>${esc(a.name)}</bdi>${a.byRule ? ` <span class="muted">${esc(t(locale, 'books.country.moneyByRule'))}</span>` : ''}</label></li>`).join('')}</ul>
-        <button class="btn" type="submit">${esc(t(locale, 'books.country.moneySave'))}</button>
-      </form>`}
-    </div>`;
+  return setSection({ id: 'states', title: t(locale, 'books.country.states'), help: t(locale, 'books.country.statesWhy'), rows:
+    (states.length === 0 ? `<p class="muted">${esc(t(locale, 'books.country.noStates'))}</p>` : `<ul class="rows">${states.map((s) =>
+      `<li class="row"><span><bdi dir="ltr">${esc(s.state)}</bdi></span><span>${rateOf(locale, s.rate)}</span></li>`).join('')}</ul>`)
+    + (options ? `<form method="post" action="/app/books/country/state-tax" class="bk-form">${
+      fieldRow({ label: t(locale, 'books.country.state'), forId: 'bc-state', control: `<select id="bc-state" name="state" required>${options}</select>` })}${
+      fieldRow({ label: t(locale, 'books.country.rate'), forId: 'bc-rate', control: '<input id="bc-rate" name="rate" inputmode="decimal" required placeholder="8.25" dir="ltr" />' })}
+      <div class="bk-acts"><button class="btn" type="submit">${esc(t(locale, 'books.country.addState'))}</button></div></form>` : '') });
 }

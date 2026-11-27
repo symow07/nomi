@@ -295,7 +295,10 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
       const row = await firstMailTo('nadia');
       expect(row).toEqual({ status: 'canceled', cancel_reason: 'canceled: no_postal_address' });
       expect(transport.sent.filter((m) => m.to === addr('nadia'))).toEqual([]);
-      expect((await get('/app/settings/business/profile')).body).toContain(esc(t('en', 'settings.need.postalAddress')));
+      // Rule 104 — said as the field's own line and the template's "Needed" mark beside its name.
+      const profile = (await get('/app/settings/business/profile')).body;
+      expect(profile).toContain(esc(t('en', 'ws.profile.postal')));
+      expect(profile).toMatch(new RegExp(`for="pf-postal">[^<]*<span class="set-need">${esc(t('en', 'set.needed'))}</span>`));
     } finally {
       // the address back, for what follows
       await post('/app/settings', { name: 'Reply Factory', postal_address: POSTAL });

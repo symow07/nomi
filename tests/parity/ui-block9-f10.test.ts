@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderProfile, type BusinessProfile } from '../../src/api/web/settings.js';
-import { renderBusinessKind } from '../../src/api/web/businessKind.js';
+import { saveActs } from '../../src/api/web/settingsPage.js';
 import { renderProductDetail, type ProductDetail, type ProductListItem } from '../../src/api/web/products.js';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 import { esc, shell } from '../../src/api/web/layout.js';
@@ -12,6 +12,7 @@ import { usd } from '../../src/core/types/money.js';
 import { withoutIsolates } from './isolates.js';
 import { linkedCss } from './linked-css.js';
 
+// (Rule 104 replaced this on the Business profile: see the note above its tests. A product's change folds keep it.)
 // UI correction, Block 9 — F10 "Read, create and edit are mixed". On the records earlier blocks did not cover (Business
 // profile's parts, the business's type, country and website, the legal identifiers, a product's change folds): a part
 // reads first — a short list of its values, with "Not given yet" where one is missing — and its form opens on purpose,
@@ -20,77 +21,92 @@ import { linkedCss } from './linked-css.js';
 // Escape closes it with the words kept; both return focus to the fold's summary (liveScript's editFolds()). Measured in
 // a browser by the harness's f10probe.mjs (base fails 30/30, head passes); this file holds the markup and the script.
 
+// RULE 104 (the settings overhaul, the owner, 2026-11-27) replaces F10 ON THE BUSINESS PROFILE: every field is on the
+// page, always, in sections, with the page's ONE Save and its Cancel at the end. A part no longer reads first behind a
+// "Change …" fold (the fold hid fields; one Save cannot save a form the owner cannot see). What F10 protected there is
+// held the new way: a value that is missing is marked where it is missing ("Needed"), a refused save keeps what was
+// typed and marks the one field, and nothing is saved by a second button. F10 itself still holds on a product (below).
 const full: BusinessProfile = {
   name: 'Juniper Skin', description: 'Skin care made in small batches.', location: 'Lisbon', workingHours: 'Mon–Fri 9–18',
   contactEmail: 'hello@juniper.test', contactPhone: '+351210000000', languagesServed: ['en', 'pt'],
   identifiers: { ice: null, taxId: null, rc: null, rcCourt: null },
 } as BusinessProfile;
-const draw = (p: BusinessProfile, l: Locale = 'en', o: { errors?: Record<string, string>; viewer?: Viewer; fixed?: boolean; zone?: boolean } = {}) =>
-  withoutIsolates(renderProfile(p, l, null, {}, (o.errors ?? {}) as never, o.zone === false ? null : { zone: 'Europe/Lisbon', country: 'PT' },
-    { currency: 'EUR', fixed: o.fixed ?? false }, o.viewer ?? OWNER_VIEW));
-const sections = (html: string) => [...html.matchAll(/<section class="sgroup ef" id="([^"]+)">([\s\S]*?)<\/section>/g)]
+const KIND = { kind: 'retail', country: 'US', website: 'shop.example' };
+const draw = (p: BusinessProfile, l: Locale = 'en', o: { errors?: Record<string, string>; viewer?: Viewer; kind?: typeof KIND | { kind: null; country: string; website: string } } = {}) =>
+  withoutIsolates(renderProfile(p, l, null, {}, (o.errors ?? {}) as never, null, null, o.viewer ?? OWNER_VIEW, {}, { view: o.kind ?? KIND }));
+const sections = (html: string) => [...html.matchAll(/<section class="set-sec" id="([^"]+)">([\s\S]*?)<\/section>/g)]
   .map((m) => ({ id: m[1]!, body: m[2]! }));
-const foldOpen = (body: string) => /<details class="ef-fold" data-edit open>/.test(body);
 const CANCEL = (l: Locale) => `<button class="btn ghost" type="button" data-edit-cancel hidden>${esc(t(l, 'common.cancel'))}</button>`;
+const NEEDED = (l: Locale) => `<span class="set-need">${esc(t(l, 'set.needed'))}</span>`;
 
-describe('F10 · a record part reads first, and its form opens on purpose', () => {
-  it('Business profile: every part is a summary list above its own "Change …" fold, in every language', () => {
+describe('rule 104 · Business profile: every field on the page, one Save', () => {
+  it('the sections, each with its fields drawn (no fold), inside the page\'s one form, in every language', () => {
     for (const l of LOCALES) {
       const html = draw(full, l);
-      const parts = sections(html);
-      expect(parts.map((s) => s.id), l).toEqual(['about', 'contact', 'zone', 'identifiers']);
-      for (const s of parts) {
-        const sum = s.body.indexOf('<dl class="ef-sum">'), fold = s.body.indexOf('<details class="ef-fold" data-edit');
-        expect(sum, `${l} ${s.id}`).toBeGreaterThan(-1);
-        expect(fold, `${l} ${s.id}`).toBeGreaterThan(sum);
-        // one form behind the fold, one Save, and the Cancel beside it
-        expect(s.body.slice(fold).match(/<form\b/g)?.length, `${l} ${s.id}`).toBe(1);
-        expect(s.body.match(/type="submit"/g)?.length, `${l} ${s.id}`).toBe(1);
-        expect(s.body, `${l} ${s.id}`).toContain(CANCEL(l));
-        expect(s.body.slice(0, fold), `${l} ${s.id}`).not.toMatch(/<(input|select|textarea)\b/);
-      }
-      // the summary shows the stored values; with nothing missing every fold is closed at rest
-      for (const v of ['Juniper Skin', 'Lisbon', 'hello@juniper.test']) expect(html, l).toContain(v);
-      expect(parts.filter((s) => foldOpen(s.body)).map((s) => s.id), l).toEqual([]);
-      expect(html, l).toContain(`<summary>${esc(t(l, 'edit.change.business'))}</summary>`);
-      expect(html, l).toContain(`<summary>${esc(t(l, 'edit.change.contact'))}</summary>`);
-      expect(html, l).toContain(`<summary>${esc(t(l, 'edit.change.zoneCurrency'))}</summary>`);
+      expect(sections(html).map((s) => s.id), l).toEqual(['about', 'contact', 'identifiers', 'business-kind']);
+      expect(html, l).not.toContain('<details');
+      expect(html, l).not.toContain('<dl class="ef-sum">');
+      // ONE form, ONE Save, its Cancel beside it, at the end of the form
+      expect(html.match(/<form\b/g)?.length, l).toBe(1);
+      expect(html, l).toContain('<form method="post" action="/app/settings/business/profile" class="set-form" data-save id="profile-form">');
+      expect(html.match(/type="submit"/g)?.length, l).toBe(1);
+      expect(html, l).toContain(`${saveActs(l)}</form>`);
+      // the stored values are in their fields
+      expect(html, l).toContain('<input id="pf-name" name="name" value="Juniper Skin" />');
+      expect(html, l).toContain('<input id="pf-location" name="location" value="Lisbon" />');
+      expect(html, l).toContain('name="contact_email" value="hello@juniper.test"');
+      expect(html, l).toContain('>Skin care made in small batches.</textarea>');
+      expect(html, l).toMatch(/name="lang_en" checked/);
+      expect(html, l).toMatch(/name="lang_pt" checked/);
+      // with nothing missing, nothing is marked and the "to finish setting up" line is not drawn
+      expect(html, l).not.toContain('class="set-need"');
+      expect(html, l).not.toContain('id="profile-needs"');
     }
   });
-  it('a fold is open at rest only while its part still needs something, or after a refused save of it', () => {
-    const missing = draw({ ...full, description: null, location: null, contactEmail: null, contactPhone: null } as BusinessProfile);
-    const open = sections(missing).filter((s) => foldOpen(s.body)).map((s) => s.id);
-    expect(open).toEqual(['about', 'contact']);
-    expect(missing).toContain(`<span class="muted">${esc(t('en', 'edit.notGiven'))}</span>`);
-    const refused = draw(full, 'en', { errors: { contactEmail: 'email' } });
-    expect(sections(refused).filter((s) => foldOpen(s.body)).map((s) => s.id)).toEqual(['contact']);
-  });
-  it('the languages served read in the locale\'s own list punctuation, each name isolated', () => {
-    const ar = draw(full, 'ar');
-    expect(ar).toContain('<bdi lang="en">English</bdi>، <bdi lang="pt">Português</bdi>');
-    expect(draw(full, 'zh')).toContain('<bdi lang="en">English</bdi>、<bdi lang="pt">Português</bdi>');
-  });
-  it('a part with nothing to save has no fold and no form: its values are drawn read-only', () => {
-    // the zone is not offered (none stored) and the currency is fixed: nothing in the part can be saved
-    const html = draw(full, 'en', { fixed: true, zone: false });
-    expect(html).toContain('<section class="sgroup" id="zone">');
-    expect(sections(html).map((s) => s.id)).not.toContain('zone');
-    const zonePart = html.slice(html.indexOf('<section class="sgroup" id="zone">'));
-    expect(zonePart.slice(0, zonePart.indexOf('</section>'))).not.toContain('<form');
-    expect(html.match(/<form method="post" action="\/app\/settings" /g)?.length).toBe(2);
-  });
-  it('the type, country and website read first on the profile; the country as its form\'s list names it', () => {
+  it('what setting up still needs is marked on its own field, and said once at the top', () => {
     for (const l of LOCALES) {
-      const on = renderBusinessKind({ kind: 'retail', country: 'US', website: 'shop.example' }, l, null, 'x', null, true);
-      expect(on, l).toContain('<dl class="ef-sum">');
-      expect(on.indexOf('<dl class="ef-sum">'), l).toBeLessThan(on.indexOf('<details class="ef-fold" data-edit>'));
-      expect(on, l).toContain(`<summary>${esc(t(l, 'edit.change.kind'))}</summary>`);
-      expect(on, l).toContain(CANCEL(l));
+      const missing = draw({ ...full, description: null, location: null, contactEmail: null, contactPhone: null } as BusinessProfile, l);
+      expect(missing, l).toContain(`<p class="set-note" id="profile-needs"><span>${esc(t(l, 'settings.profile.needs'))}</span></p>`);
+      expect(missing, l).toContain(`for="pf-description">${esc(t(l, 'settings.field.description'))} ${NEEDED(l)}</label>`);
+      expect(missing, l).toContain(`for="pf-location">${esc(t(l, 'settings.field.location'))} ${NEEDED(l)}</label>`);
+      // either way of being reached finishes the step, and each field says so
+      expect(missing, l).toContain(`<span class="set-need">${esc(t(l, 'ws.profile.orPhone'))}</span>`);
+      expect(missing, l).toContain(`<span class="set-need">${esc(t(l, 'ws.profile.orEmail'))}</span>`);
+      expect(missing.match(/class="set-need"/g)?.length, l).toBe(4);
+    }
+  });
+  it('a refused save marks the one field that was wrong, on the same page', () => {
+    const refused = draw(full, 'en', { errors: { contactEmail: 'emailShape' } });
+    expect(refused.match(/class="setrow bad"/g)?.length).toBe(1);
+    expect(refused).toContain(`<span class="fielderr" role="alert">${esc(t('en', 'settings.err.emailShape'))}</span>`);
+  });
+  it('the languages served are named in their own language, each isolated', () => {
+    for (const l of LOCALES) {
+      const html = draw(full, l);
+      expect(html, l).toContain('<bdi lang="en">English</bdi>');
+      expect(html, l).toContain('<bdi lang="pt">Português</bdi>');
+      expect(html, l).toContain('<bdi lang="ar">العربية</bdi>');
+    }
+  });
+  it('working hours, the time zone and the currency have ONE home each: named here, with their doors, and no field', () => {
+    for (const l of LOCALES) {
+      const html = draw(full, l);
+      expect(html, l).not.toMatch(/name="(working_hours|zone|currency)"/);
+      expect(html, l).toContain(`<a href="/app/settings/business/hours">${esc(t(l, 'settingsArea.hours'))}</a>`);
+      expect(html, l).toContain(`<a href="/app/settings/business/currency">${esc(t(l, 'settingsArea.currency'))}</a>`);
+    }
+  });
+  it('the type, country and website are fields of the same form; the country as its list names it', () => {
+    for (const l of LOCALES) {
+      const html = draw(full, l);
+      const part = sections(html).find((s) => s.id === 'business-kind')!.body;
+      expect(part, l).toContain('<option value="retail" selected>');
       const name = new Intl.DisplayNames([l === 'zh' ? 'zh-Hans' : l], { type: 'region' }).of('US')!;
-      expect(withoutIsolates(on), l).toContain(`<bdi>${esc(name)}</bdi>`);
-      // open at rest while the kind or the country is not answered
-      expect(renderBusinessKind({ kind: null, country: 'US', website: '' }, l, null, 'x', null, true), l)
-        .toContain('<details class="ef-fold" data-edit open>');
+      expect(part, l).toContain(`<option value="US" selected>${esc(name)}</option>`);
+      expect(part, l).toContain('name="website" value="shop.example"');
+      // not answered yet: the list starts on "choose", nothing is pre-chosen for the owner
+      const open = sections(draw(full, l, { kind: { kind: null, country: 'US', website: '' } })).find((s) => s.id === 'business-kind')!.body;
+      expect(open.slice(open.indexOf('id="bk-kind"'), open.indexOf('</select>')), l).not.toContain(' selected');
     }
   });
 });

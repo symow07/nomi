@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler, type CompiledQuery } from 'kysely';
 import { registerWebApp, type WebDeps } from '../../src/api/web/app.js';
 import { makeSessionCodec } from '../../src/api/web/session.js';
+import { settingsApp } from './settings-harness.js';
 
 /**
  * THE WARMTH RUN, PHASE 9 — the fix wave, area settings-a (docs/UI-AUDIT.md §8).
@@ -73,7 +74,10 @@ describe('w4-settings-a-24 · a form sent back keeps the rail: its waiting count
     ['a forbidden word of spaces only', '/app/settings/forbidden', 'term=%20%20%20'],
   ] as const) {
     it(`${what}: sent back with status 400, the rail still counts 3 and still asks`, async () => {
-      const a = appWith();
+      // Rule 104 — the words to avoid are a section of Promises and words: the page sent back is that whole page, so
+      // the database here also answers what the page counts (the settings harness: every count 0), the rail's count kept.
+      const a = url === '/app/settings/forbidden'
+        ? settingsApp({ answers: [[/ as waiting,/, [{ waiting: 3, blocked: 0, mine: 0, deletion: 0, channels: 1 }]]] }) : appWith();
       const r = await a.inject({ method: 'POST', url, payload, headers: { ...HTML, ...FORM, cookie: cookieFor(PILOT) } });
       expect(r.statusCode).toBe(400);
       expect(r.body).toContain('role="alert"');
@@ -112,7 +116,9 @@ describe('V1-008 · a closure\'s dates are drawn in the owner\'s language, not t
   const view = { closures: [] };
   const order = (html: string, name: string) => [...html.matchAll(new RegExp(`name="${name}_([dmy])"`, 'g'))].map((m) => m[1]).join('');
   it('ar and zh: no browser date control; the parts in the order the language writes a date; the months by their names', async () => {
-    const { renderClosures } = await import('../../src/api/web/settings.js');
+    // Rule 104 — the closures are a section of Hours and closures.
+    const { renderHours } = await import('../../src/api/web/settings.js');
+    const renderClosures = (v: { closures: Parameters<typeof renderHours>[0]['closures'] }, l: 'en' | 'zh' | 'ar', _f: null) => renderHours({ workingHours: null, zone: null, closures: v.closures }, l, null);
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const ar = renderClosures(view, 'ar', null);
     const zh = renderClosures(view, 'zh', null);
@@ -160,11 +166,11 @@ describe('w4-settings-a-22 · Your sign-in says what to do when the code or the 
     const { esc } = await import('../../src/api/web/layout.js');
     const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
     for (const l of LOCALES) {
-      expect(renderAccount({ email: null, passwordMin: 10 }, l, null, 'Setup'), l).toContain(esc(t(l, 'account.lost.code')));
-      const mailed = renderAccount({ email: 'a@example.test', passwordMin: 10, recovery: true }, l, null, 'Setup');
+      expect(renderAccount({ email: null, passwordMin: 10 }, l, null), l).toContain(esc(t(l, 'account.lost.code')));
+      const mailed = renderAccount({ email: 'a@example.test', passwordMin: 10, recovery: true }, l, null);
       // The text pass (2026-11-26): the link says it alone ("Forgot your password?"); the sentence before it said it twice.
       expect(mailed, l).toContain(`<a href="/login/forgot">${esc(t(l, 'login.forgot'))}</a>`);
-      const asked = renderAccount({ email: 'a@example.test', passwordMin: 10 }, l, null, 'Setup');
+      const asked = renderAccount({ email: 'a@example.test', passwordMin: 10 }, l, null);
       expect(asked, l).toContain(esc(t(l, 'account.lost.passwordAsk')));
       expect(asked, l).not.toContain('/login/forgot');
     }
@@ -203,21 +209,23 @@ describe('w4-settings-a-19 · how a word is matched is shown with an example in 
     }
   });
   it('the languages in the fold are labels, capitalised where the script has case', async () => {
-    const { renderForbidden } = await import('../../src/api/web/settings.js');
-    const fr = renderForbidden({ own: [], floor: ['idiot'] }, 'fr', null);
+    const { forbiddenSection: renderForbidden } = await import('../../src/api/web/settings.js');
+    const fr = renderForbidden({ own: [], floor: ['idiot'] }, 'fr');
     expect(fr).toContain('<dt>Anglais</dt>');
     expect(fr).not.toContain('<dt>anglais</dt>');
-    expect(renderForbidden({ own: [], floor: [] }, 'es', null)).toContain('<dt>Inglés</dt>');
+    expect(renderForbidden({ own: [], floor: [] }, 'es')).toContain('<dt>Inglés</dt>');
   });
 });
 
 describe('settings-a-new-09 · w4-settings-a-20 · closures and forbidden words: one width for the intro, and room above the fixed list', () => {
   it('the second intro paragraph keeps the lede\'s measure; the fixed list is set apart from the empty panel', async () => {
-    const { renderClosures, renderForbidden } = await import('../../src/api/web/settings.js');
+    const { renderHours, forbiddenSection } = await import('../../src/api/web/settings.js');
+    const renderClosures = (v: { closures: [] }, l: 'en' | 'zh' | 'ar', _f: null) => renderHours({ workingHours: null, zone: null, closures: v.closures }, l, null);
     const { stylesheetAt, shell } = await import('../../src/api/web/layout.js');
     // The text pass (2026-11-26): the example folds under its own name, and keeps the lede's measure when opened.
     expect(renderClosures({ closures: [] }, 'en', null)).toMatch(/<details class="note-fold closure-said"><summary>[^<]+<\/summary><p class="measure-prose">/);
-    expect(renderForbidden({ own: [], floor: [] }, 'en', null)).toMatch(/<p class="muted small measure-prose">[^<]*familiar/);
+    // Rule 104 — how a word is matched is the hint of the field it concerns (the row's own measure).
+    expect(forbiddenSection({ own: [], floor: [] }, 'en')).toMatch(/<label class="fr-name" for="fb-term">[^<]*<\/label><span class="fr-desc">[^<]*familiar/);
     const sheet = /href="\/assets\/(app\.[0-9a-f]+\.css)"/.exec(shell({ title: 'T', active: 'settings', locale: 'en', path: '/app', bodyHtml: '' }))![1]!;
     expect(stylesheetAt(sheet)!.css).toContain('.block.floor { margin-top:var(--space-24); }');
   });

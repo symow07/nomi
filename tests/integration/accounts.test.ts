@@ -219,9 +219,9 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(made.statusCode, made.body.slice(0, 300)).toBe(302);
     expect(await zoneOfName(C.factory)).toBe('America/Chicago');
 
-    // The owner changes it on the profile; a value that is not a zone changes nothing.
+    // The owner changes it on Hours and closures (rule 104: the zone's one home); a value that is not a zone changes nothing.
     const cookieC = cookieOf(made);
-    const profile = await get('/app/settings/business/profile', cookieC);
+    const profile = await get('/app/settings/business/hours', cookieC);
     expect(profile.body).toContain('<option value="America/Chicago" selected>');
     const saved = await form('/app/settings', { name: C.factory, zone: 'America/Denver' }, cookieC);
     expect(flashSaid(saved, WEB_SECRET)).toBe(t('en', 'settings.flash.profileSaved'));
@@ -230,17 +230,25 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.zoneInvalid'));
     expect(await zoneOfName(C.factory)).toBe('America/Denver');
     // The cached facts were let go: the next page is drawn in the new zone.
-    expect((await get('/app/settings/business/profile', cookieC)).body).toContain('<option value="America/Denver" selected>');
-    // The old address saves nothing: an old form, or an old link, lands on the profile, where the zone lives.
+    expect((await get('/app/settings/business/hours', cookieC)).body).toContain('<option value="America/Denver" selected>');
+    // …and through the page's own Save (rule 104), which keeps the same rule.
+    const own = await form('/app/settings/business/hours', { working_hours: '', zone: 'America/Phoenix' }, cookieC);
+    expect(flashSaid(own, WEB_SECRET)).toBe(t('en', 'ws.flash.saved'));
+    expect(await zoneOfName(C.factory)).toBe('America/Phoenix');
+    const ownBad = await form('/app/settings/business/hours', { working_hours: '', zone: 'Mars/Olympus' }, cookieC);
+    expect(flashSaid(ownBad, WEB_SECRET)).toBe(t('en', 'settings.flash.zoneInvalid'));
+    expect(await zoneOfName(C.factory)).toBe('America/Phoenix');
+    expect((await form('/app/settings/business/hours', { working_hours: '', zone: 'America/Denver' }, cookieC)).statusCode).toBe(302);
+    // The old address saves nothing: an old form, or an old link, lands on the page where the zone lives.
     const oldForm = await form('/app/settings/zone', { zone: 'America/Chicago' }, cookieC);
-    expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/settings/profile']);
+    expect([oldForm.statusCode, oldForm.headers['location']]).toEqual([303, '/app/settings/business/hours']);
     expect(await zoneOfName(C.factory)).toBe('America/Denver');
     const oldLink = await get('/app/settings/zone', cookieC);
-    expect([oldLink.statusCode, oldLink.headers['location']]).toEqual([301, '/app/settings/profile']);
+    expect([oldLink.statusCode, oldLink.headers['location']]).toEqual([301, '/app/settings/business/hours']);
     // …and a stranger gets the same address, which sends them to the door; nothing is saved.
     const stranger = await form('/app/settings/currency', { currency: 'SAR' });
-    expect([stranger.statusCode, stranger.headers['location']]).toEqual([303, '/app/settings/profile']);
-    const door = await get('/app/settings/business/profile', '');
+    expect([stranger.statusCode, stranger.headers['location']]).toEqual([303, '/app/settings/business/currency']);
+    const door = await get('/app/settings/business/currency', '');
     expect([door.statusCode, door.headers['location']]).toEqual([302, '/login']);
 
     // …and every "today" the database decides is the workspace's own.
@@ -368,7 +376,12 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const flash = (r: { headers: Record<string, unknown> }) => flashSaid(r, WEB_SECRET);
     expect(flash(await form('/app/settings/account/password', { current: 'not-it', next: 'a-brand-new-password' }, cookieB))).toBe(t('en', 'account.flash.wrong'));
     expect(flash(await form('/app/settings/account/password', { current: B.password, next: 'short' }, cookieB))).toBe(t('en', 'account.flash.short', { n: 10 }));
-    const changed = await form('/app/settings/account/password', { current: B.password, next: 'a-brand-new-password' }, cookieB);
+    // Rule 104 — the page's ONE Save carries the password: a wrong one comes back under its field, nothing changed.
+    const refused = await form('/app/settings/personal/account', { current: 'not-it', next: 'a-brand-new-password', language: 'en' }, cookieB);
+    expect(refused.statusCode).toBe(422);
+    expect(refused.body).toContain(t('en', 'account.flash.wrong'));
+    expect(refused.body).not.toContain('a-brand-new-password');
+    const changed = await form('/app/settings/personal/account', { current: B.password, next: 'a-brand-new-password', language: 'en' }, cookieB);
     expect(flash(changed)).toBe(t('en', 'account.flash.changed'));
     const reissued = cookieOf(changed);
     expect(reissued, 'the page she is on is re-issued a session dated after the change').not.toBe('');

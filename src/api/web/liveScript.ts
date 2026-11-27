@@ -504,7 +504,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       }
       pending = b;
       said.textContent = b.getAttribute('data-confirm');
-      yes.textContent = String(b.textContent || '').trim();
+      /* The yes says the act: a switch shows its state, so it names its verb in data-verb. */
+      yes.textContent = b.getAttribute('data-verb') || String(b.textContent || '').trim();
       yes.className = 'btn ' + (/(^| )danger( |$)/.test(String(b.className)) ? 'danger' : 'send');
       box.showModal();
     }, true);
@@ -559,6 +560,61 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       if (!f || doc.querySelector('dialog[open]')) return;
       e.preventDefault();
       shut(f);
+    });
+  }
+
+  /* Rule 104: one Save per settings page. A form marked data-save is changed once a field in it is typed in or
+     chosen; leaving the page then asks first, in the browser's own words. Sending that form, or its Cancel (a reset),
+     clears the mark. A list's search box is not a field. */
+  function unsaved() {
+    function saved(el) {
+      var f = el && !el.hasAttribute('data-list-q') ? (el.form || (el.closest ? el.closest('form') : null)) : null;
+      return f && f.hasAttribute('data-save') ? f : null;
+    }
+    function changed(e) { var f = e.target && e.target.hasAttribute ? saved(e.target) : null; if (f) f.setAttribute('data-dirty', ''); }
+    function clean(e) { var f = e.target; if (f && f.hasAttribute && f.hasAttribute('data-save')) f.removeAttribute('data-dirty'); }
+    doc.addEventListener('input', changed);
+    doc.addEventListener('change', changed);
+    doc.addEventListener('submit', clean);
+    doc.addEventListener('reset', clean);
+    window.addEventListener('beforeunload', function (e) {
+      if (!doc.querySelector('form[data-save][data-dirty]')) return;
+      e.preventDefault();
+      e.returnValue = '';
+      /* Still here a moment later: the person stayed. The form that was on its way is given back its button. */
+      setTimeout(function () {
+        var held = doc.querySelectorAll('[data-sending]'), busy = doc.querySelectorAll('[aria-busy]'), i;
+        for (i = 0; i < held.length; i++) held[i].removeAttribute('data-sending');
+        for (i = 0; i < busy.length; i++) busy[i].removeAttribute('aria-busy');
+      }, 0);
+    });
+  }
+
+  /* Rule 104: a long list (data-list) with its rows marked data-row. Over ten rows it gets its search box, and shows
+     25 at a time behind "Show more". Without this every row is on the page and the box stays away. */
+  function lists() {
+    doc.querySelectorAll('[data-list]').forEach(function (list) {
+      var rows = list.querySelectorAll('[data-row]'), q = list.querySelector('[data-list-q]'), more = list.querySelector('[data-list-more]');
+      var none = list.querySelector('[data-list-none]'), find = list.querySelector('[data-list-find]');
+      var step = parseInt(list.getAttribute('data-list') || '', 10) || 25, shown = step;
+      if (rows.length <= 10 || !q) return;
+      function draw() {
+        var want = String(q.value || '').toLowerCase().trim(), hit = 0;
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i], words = (r.getAttribute('data-row') || r.textContent || '').toLowerCase();
+          var ok = !want || words.indexOf(want) >= 0;
+          if (ok) hit++;
+          r.hidden = !ok || hit > shown;
+        }
+        if (more) more.hidden = hit <= shown;
+        if (none) none.hidden = hit > 0;
+      }
+      if (find) find.hidden = false;
+      q.addEventListener('input', function () { shown = step; draw(); });
+      /* Enter in the box searches; it never sends the form the list sits in. */
+      q.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+      if (more) more.addEventListener('click', function () { shown += step; draw(); });
+      draw();
     });
   }
 
@@ -1120,6 +1176,8 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   copying();
   filters();
   editFolds();
+  unsaved();
+  lists();
   orbs();
   cards();
   faces();

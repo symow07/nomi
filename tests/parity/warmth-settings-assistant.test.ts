@@ -15,7 +15,10 @@ import { modesFor } from '../../src/core/conversation/autonomyLevel.js';
 import { disclosureAwaitingReview, disclosureReviewed } from '../../src/core/conversation/disclosure.js';
 import { withoutIsolates } from './isolates.js';
 import { linkedCss } from './linked-css.js';
-import { screen } from './employee-screens.js';
+import { screen, namePage } from './employee-screens.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
+import { PERMISSIONS_SAVE } from '../../src/api/web/employee.js';
+import { capabilityName } from '../../src/core/owner/i18n/messages.js';
 import { BACK } from '../../src/api/web/icons.js';
 
 /**
@@ -24,6 +27,11 @@ import { BACK } from '../../src/api/web/icons.js';
  * iPhone/Instagram settings pattern: a short, calm menu of rows, each showing
  * its current value, that you tap into … One exception: the control for how
  * much Nomi does alone stays visible on the landing screen."
+ *
+ * THE SETTINGS OVERHAUL (2026-11-27, rule 104) — the landing is a settings page on the one template now, "Reply
+ * permissions": the menu of rows became the Settings menu (the Assistant group) and the Assistant area; the control
+ * is still on the page, whole, with the kinds of reply and follow-ups under it and ONE Save. Points 1, 3, 4 and 7
+ * below are held for that page; 2 (a menu of rows) is the Settings menu's, held in settings-navigation tests.
  *
  * What this holds, in every language:
  *   1. the control — the three levels and the form that saves them — is on
@@ -75,71 +83,94 @@ const talk: TalkAbout = {
 };
 const STAFF = { isOwner: false } as const;
 
-const landing = (e: EmployeeProfile, l: (typeof LOCALES)[number], viewer?: { isOwner: boolean }) =>
-  withAssistantName('Lily', () => renderEmployee(e, l, null, ctx, viewer));
+const landing = (e: EmployeeProfile, l: (typeof LOCALES)[number], viewer: { isOwner: boolean } = OWNER_VIEW) =>
+  withAssistantName('Lily', () => renderEmployee(e, l, null, viewer));
 
-/** The control, whole: the one section that is not a menu. */
+/** The control, whole: the section of the three levels. */
 const control = (html: string): string => {
-  const at = html.indexOf('<section class="block level-control"');
-  expect(at, 'the control is on the landing').toBeGreaterThan(-1);
+  const at = html.indexOf('<section class="set-sec" id="on-her-own">');
+  expect(at, 'the control is on the page').toBeGreaterThan(-1);
   return html.slice(at, html.indexOf('</section>', at) + '</section>'.length);
 };
-const outside = (html: string): string => html.replace(control(html), '');
-const rows = (html: string): string[] => [...outside(html).matchAll(/<li(?: id="[^"]*")?>([\s\S]*?)<\/li>/g)].map((m) => m[1]!);
+/** What stands above the first section: the heading, its one line, and what holds the control (the notices). */
+const top = (html: string): string => html.slice(0, html.indexOf('<section class="set-sec"'));
+/** A kind's row in the table: from its name to the row's end. */
+const kindRow = (html: string, name: string): string => {
+  const at = html.indexOf(`<th scope="row"><bdi>${esc(name)}</bdi></th>`);
+  expect(at, name).toBeGreaterThan(-1);
+  return html.slice(at, html.indexOf('</tr>', at));
+};
 const text = (html: string): string => withoutIsolates(html.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 /** Sentences, by their end marks in the five languages. */
 const sentences = (s: string): number => s.split(/(?<=[.!?。！？؟])\s*/u).filter((x) => /\p{L}/u.test(x)).length;
 
-describe('phase 7 · the landing: the name, the control, the menu', () => {
+describe('rule 104 · Reply permissions: the heading, the control, the kinds of reply, follow-ups — and one Save', () => {
   for (const l of LOCALES) {
-    it(`${l} · the control is whole on the landing: the three levels, the one in force checked, the form posting where it did`, () => {
-      const c = control(landing(base, l));
-      expect(c).toContain('id="on-her-own"');                        // Today's and the alerts' anchor
-      expect(c).toContain('<form method="post" action="/app/settings/assistant/autonomy" class="levels">');
+    it(`${l} · the control is whole on the page: the three levels, the one in force checked, fields of the page's one form`, () => {
+      const html = landing(base, l);
+      const c = control(html);                                       // id="on-her-own": Today's and the alerts' anchor
       for (const level of ['waits', 'talks', 'sells']) {
-        expect(c, `${l}/${level}`).toMatch(new RegExp(`<input type="radio" name="level" value="${level}"`));
+        expect(c, `${l}/${level}`).toMatch(new RegExp(`<input type="radio" name="level" value="${level}" form="reply-permissions"`));
         expect(c, `${l}/${level}`).toContain(esc(withAssistantName('Lily', () => t(l, `autonomy.level.${level}` as never))));
         expect(c, `${l}/${level}`).toContain(esc(withAssistantName('Lily', () => t(l, `autonomy.level.${level}.note` as never))));
       }
-      expect(c).toContain(`<button class="btn send" type="submit">${esc(t(l, 'autonomy.save'))}</button>`);
-      expect(control(landing(talks, l))).toMatch(/name="level" value="talks" checked/);
-      // …and it comes before the menu, right under the name.
-      const html = landing(base, l);
-      expect(html.trimStart().startsWith('<h1 class="page">Lily</h1>'), l).toBe(true);
-      expect(html.indexOf('level-control')).toBeLessThan(html.indexOf('class="sgroup"'));
+      // The form the levels belong to is the page's one form; its Save is the page's one Save, at its end.
+      expect(html).toContain(`<form method="post" action="${PERMISSIONS_SAVE}" class="set-form" data-save id="reply-permissions">`);
+      expect(html.split(`<button class="btn send" type="submit">${esc(t(l, 'autonomy.save'))}</button>`).length - 1, l).toBe(1);
+      expect(html.trimEnd().endsWith(`<button class="btn" type="reset">${esc(t(l, 'common.cancel'))}</button></div></form>`), l).toBe(true);
+      expect(control(landing(talks, l))).toMatch(/name="level" value="talks" form="reply-permissions" checked/);
+      // The level the page was drawn with travels with the form: a Save that leaves it alone does not choose it again.
+      expect(control(landing(talks, l))).toContain('<input type="hidden" name="level_was" value="talks" form="reply-permissions" />');
+      expect(c).toContain('<input type="hidden" name="level_was" value="" form="reply-permissions" />');
+      expect(c).not.toMatch(/name="level" value="[a-z]+" form="reply-permissions" checked/);   // none of the three applies: none is ticked
+      // …and it comes first, right under the heading and its line.
+      expect(html.trimStart().startsWith(`<h1 class="page">${esc(t(l, 'settingsArea.permissions'))}</h1><p class="lede set-lede">`), l).toBe(true);
+      expect(html.indexOf('id="on-her-own"')).toBeLessThan(html.indexOf('id="reply-types"'));
     });
 
-    it(`${l} · the rest is a menu: rows in labelled groups, each its shape, its name, where it stands, and the door`, () => {
+    it(`${l} · every part is in view, in order; each kind of reply is a row with where it stands and its one act`, () => {
       const html = landing({ ...base, spotChecks: [check] }, l);
-      expect(outside(html).match(/<section class="sgroup"/g)).toHaveLength(3);
-      const all = rows(html);
-      expect(all.length, l).toBeGreaterThanOrEqual(11);
-      for (const r of all) {
-        expect(r, `${l}: ${text(r)}`).toMatch(/^<a class="srow sr-menu(?: sr-two)?" href="\/app\/[^"]+"><svg class="ni[^"]*"[^>]*aria-hidden="true"/);
-        expect(r).toContain('<span class="sr-label">');
-        expect(r).toMatch(/<span class="go" aria-hidden="true"><svg class="gi sl"[^>]*>[\s\S]*?<\/svg><\/span><\/a>$/);
-        // every row says where it stands — a value, or (Practice) the line under its name
-        expect(r.includes('<span class="sr-value') || r.includes('<span class="sr-desc">'), `${l}: ${text(r)}`).toBe(true);
+      expect([...html.matchAll(/<section class="set-sec" id="([^"]+)">/g)].map((m) => m[1])).toEqual(['on-her-own', 'reply-types', 'follow-ups']);
+      expect(html, l).not.toContain('<details');
+      const cap = (c: string) => capabilityName(l, c);
+      // goes out alone: says so, and can be made to wait, asking first
+      const greet = kindRow(html, cap('greet'));
+      expect(greet, l).toContain(`<span class="pill long ok">${esc(t(l, 'her.handles.alone'))}</span>`);
+      expect(greet, l).toContain('<form method="post" action="/app/settings/assistant/capability/greet/revoke" class="set-act">');
+      expect(greet, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.revokeConfirm', { cap: cap('greet') }))}"`);
+      // waits, and has earned going alone: says so, and the owner may grant it, asking first
+      const quote = kindRow(html, cap('quote'));
+      expect(quote, l).toContain(`<span class="pill long">${esc(t(l, 'her.handles.waits'))}</span>`);
+      expect(withoutIsolates(quote), l).toContain(withoutIsolates(esc(t(l, 'employee.actions.eligible', { cap: cap('quote') }))));
+      expect(quote, l).toContain('<form method="post" action="/app/settings/assistant/capability/quote/promote" class="set-act">');
+      expect(quote, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.grantConfirm', { cap: cap('quote') }))}"`);
+      // waits, not earned: no button, and why
+      const negotiate = kindRow(html, cap('negotiate'));
+      expect(negotiate, l).not.toContain('<form');
+      expect(negotiate, l).toContain(`<span class="as-lock">${esc(t(l, 'as.perm.earned'))}</span>`);
+      // the four that always wait: rows too, locked
+      for (const kind of [cap('confirm_order'), t(l, 'neverAllowed.promise_stock'), t(l, 'neverAllowed.change_payment'), t(l, 'neverAllowed.promise_leadtime')]) {
+        const row = kindRow(html, kind);
+        expect(row, `${l}: ${kind}`).toContain(`<span class="pill long stop">${esc(t(l, 'her.handles.always'))}</span>`);
+        expect(row, `${l}: ${kind}`).toContain(`<span class="as-lock">${esc(t(l, 'as.perm.locked'))}</span>`);
+        expect(row, `${l}: ${kind}`).not.toContain('<form');
       }
-      // a short value at the row's end; where it stands as a sentence, the line under the name (never a value cut short)
-      const row = (href: string) => all.find((r) => /^<a class="srow sr-menu(?: sr-two)?" href="([^"]+)"/.exec(r)?.[1] === href) ?? '';
-      for (const href of ['/app/assistant/knowledge#sources', '/app/assistant/knowledge', '/app/assistant/knowledge?view=needs-answer', '/app/settings/assistant/words',
-        '/app/settings/assistant/name', '/app/assistant/review', '/app/assistant/activity']) expect(row(href), `${l}: ${href}`).toContain('<span class="sr-value');
-      for (const href of ['/app/settings/assistant#reply-types', '/app/settings/assistant#reply-types', '/app/assistant/practice', '/app/settings/assistant/month', '/app/settings/assistant#progress'])
-        expect(row(href), `${l}: ${href}`).toContain('<span class="sr-desc">');
-      // a waiting thing is said in the waiting colour, with its shape (the stylesheet draws ○ before .sr-value.warn)
-      expect(html).toMatch(/href="\/app\/assistant\/review">[\s\S]*?<span class="sr-value warn"/);
-      expect(html).toMatch(/href="\/app\/assistant\/knowledge\?view=needs-answer">[\s\S]*?<span class="sr-value warn"/);
+      // a setting is never said in the waiting colour (that is for a customer who waits)
+      expect(html, l).not.toMatch(/class="(?:pill|sr-value)[^"]*\bwarn\b/);
+      // settings only: the work to check is the Assistant area's, not a row here
+      expect(html, l).not.toContain('/app/assistant/review');
     });
 
-    it(`${l} · no essay on the landing: no paragraph outside the control, and each row one line`, () => {
+    it(`${l} · no essay: one line under the heading, short lines of help, and the long explanation is not on the page`, () => {
       const html = landing({ ...base, spotChecks: [check] }, l);
-      expect(outside(html), l).not.toMatch(/<p[\s>]/);
-      for (const r of rows(html)) {
-        const words = [...r.matchAll(/<span class="sr-(?:label|desc)">([\s\S]*?)<\/span>/g)].map((m) => text(m[1]!));
-        for (const w of words) expect(sentences(w), `${l}: "${w}"`).toBeLessThanOrEqual(1);
-      }
-      for (const h of outside(html).matchAll(/<h2 class="sgroup-h"[^>]*>([\s\S]*?)<\/h2>/g)) expect(sentences(text(h[1]!))).toBe(1);
+      const lede = /<p class="lede set-lede">([\s\S]*?)<\/p>/.exec(html)?.[1] ?? '';
+      expect(sentences(text(lede)), l).toBe(1);
+      const paragraphs = [...html.matchAll(/<p class="set-help"[^>]*>([\s\S]*?)<\/p>/g)].map((m) => text(m[1]!));
+      expect(paragraphs.length, l).toBeGreaterThan(2);
+      for (const para of paragraphs) expect(sentences(para), `${l}: "${para}"`).toBeLessThanOrEqual(4);
+      for (const k of ['autonomy.intro', 'autonomy.needsName', 'autonomy.disclosure'] as const)
+        expect(html, `${l} ${k}`).not.toContain(esc(withAssistantName('Lily', () => t(l, k))));
+      for (const h of html.matchAll(/<h2 class="set-h"[^>]*>([\s\S]*?)<\/h2>/g)) expect(sentences(text(h[1]!))).toBe(1);
     });
   }
 
@@ -150,48 +181,54 @@ describe('phase 7 · the landing: the name, the control, the menu', () => {
   });
 });
 
-describe('phase 7 · every former section, one tap away, its words and controls intact', () => {
+describe('phase 7 · every former section is still there, its words and controls intact', () => {
   for (const l of LOCALES) {
     it(`${l}`, () => {
       const e: EmployeeProfile = { ...base, spotChecks: [check], conditions: [{ cond: 'passed_spotcheck', met: true }, { cond: 'learned_correction', met: false }] };
       const html = landing(e, l);
-      const on = (s: Parameters<typeof screen>[0]) => {
-        expect(html, `${l}: the landing opens ${s}`).toContain(`href="${screenHref(s)}"`);
-        return withAssistantName('Lily', () => screen(s, e, l, ctx, undefined, { talk }));
-      };
-      // who it is: the card — stage, role, since when
-      expect(on('name')).toContain(esc(t(l, 'employee.role.reception')));
+      const on = (s: Parameters<typeof screen>[0]) => withAssistantName('Lily', () => screen(s, e, l, ctx, undefined, { talk }));
+      const menu = sectionSidebar(l, 'settings', '/app/settings/assistant');
+      // who it is: the Name and identity page, a row of the Settings menu (staff read the role; the owner its fields)
+      expect(menu, l).toContain('href="/app/settings/assistant/name"');
+      expect(withAssistantName('Lily', () => namePage(e, l, STAFF))).toContain(esc(t(l, 'employee.role.reception')));
+      expect(withAssistantName('Lily', () => namePage(e, l))).toContain('id="identity"');
       // what it knows, and what it still needs (each question to the teach flow)
       expect(on('learning')).toContain(`href="/app/assistant/knowledge">${esc(withAssistantName('Lily', () => t(l, 'knowledge.teach')))}`);
       expect(on('learning')).toContain('href="/app/assistant/knowledge?view=facts&amp;teach=Do%20you%20ship%20to%20Dubai%3F"');
-      // what it handles
-      expect(on('replies')).toContain(esc(t(l, 'her.handles.always')));
-      // one kind at a time — the grant and the undo, each asking first
-      expect(on('one-kind')).toContain('action="/app/settings/assistant/capability/quote/promote"');
-      expect(on('one-kind')).toContain('action="/app/settings/assistant/capability/greet/revoke"');
+      // what it handles, and one kind at a time — the grant and the undo, each asking first: sections of this page
+      expect(html).toContain(esc(t(l, 'her.handles.always')));
+      expect(html).toContain('action="/app/settings/assistant/capability/quote/promote"');
+      expect(html).toContain('action="/app/settings/assistant/capability/greet/revoke"');
       // its work to check, and the words to answer with
       expect(on('checks')).toContain('action="/app/settings/assistant/spot-check/s1"');
-      // the month, what comes next, what changed
+      // the month, what comes next (a line of this page, with what earns it), what changed
       expect(withoutIsolates(on('month'))).toContain('<b class="hnum">12</b>');
-      expect(on('next')).toContain(esc(t(l, 'employee.promo.current')));
+      const next = html.slice(html.indexOf('id="progress"'), html.indexOf('</ul>', html.indexOf('id="progress"')));
+      expect(next).toContain(esc(t(l, 'employee.promo.current')));
+      for (const c of ['passed_spotcheck', 'learned_correction'] as const) expect(next, c).toContain(esc(withAssistantName('Lily', () => t(l, `employee.promo.cond.${c}`))));
       expect(on('history')).toContain('<ul class="growth">');
-      // and the pages it always opened, each a row of its own
-      for (const page of ['/app/assistant/knowledge', '/app/settings/assistant/words', '/app/assistant/practice']) expect(html, `${l}: ${page}`).toContain(`href="${page}"`);
+      // and the pages it always opened: the words to avoid, a section of Promises and words
+      expect(menu, l).toContain('href="/app/settings/assistant/promises"');
     });
   }
 
-  it('"check its work" is a row only while something waits; the screen says so when nothing does', () => {
+  it('"check its work" is the Assistant area\'s page; the screen says so when nothing waits', () => {
     expect(landing(base, 'en')).not.toContain('href="/app/assistant/review"');
+    expect(screenHref('checks')).toBe('/app/assistant/review');
     expect(screen('checks', base, 'en')).toContain(esc(t('en', 'spotcheck.none')));
   });
 
   it('the hub links every screen it lists, with daily tools and monthly results in their approved areas', () => {
-    const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings/assistant')!.routes;
-    // The navigation block (2026-11-25): the hub's own row of links is the assistant area's sidebar now, and the
-    // assistant's settings sit in that area; the month is a report.
-    const html = landing(base, 'en') + sectionSidebar('en','assistant','/app/settings/assistant');
+    // The settings overhaul (2026-11-27, rule 104): the assistant's settings are a group of the ONE Settings area, whose
+    // menu page is their hub; the Settings sidebar lists them. Its daily tools stay in the assistant's area; the
+    // month is a report.
+    const routes = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings')!.routes.filter((r) => r.startsWith('/app/settings/assistant'));
+    expect(routes).toEqual(['/app/settings/assistant', '/app/settings/assistant/name', '/app/settings/assistant/promises']);
+    const html = landing(base, 'en') + sectionSidebar('en','settings','/app/settings/assistant');
     for (const r of routes) expect(html, r).toContain(`href="${r}"`);
-    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(s === 'month' ? 'reports' : 'assistant');
+    const area = (s: (typeof EMPLOYEE_SCREENS)[number]) => s === 'month' ? 'reports' : screenHref(s).startsWith('/app/assistant') ? 'assistant' : 'settings';
+    for (const s of EMPLOYEE_SCREENS) expect(hubFor(screenHref(s), 'x'), s).toBe(area(s));
+    expect(EMPLOYEE_SCREENS.filter((s) => area(s) === 'assistant')).toEqual(['talk', 'learning', 'checks', 'history']);
   });
 });
 
@@ -280,7 +317,7 @@ describe('phase 7 · every screen starts with its way back', () => {
   });
 });
 
-describe('phase 7 · what holds the control is said beside it (rules 1, 2 and 13)', () => {
+describe('phase 7 · what holds the control is said on the page, before it (rules 1, 2 and 13)', () => {
   for (const l of LOCALES) {
     it(`${l} · rule 1 — the native read: which languages wait, or that nothing goes out alone yet`, () => {
       expect(disclosureAwaitingReview().length).toBeGreaterThan(0);
@@ -289,32 +326,39 @@ describe('phase 7 · what holds the control is said beside it (rules 1, 2 and 13
         waiting: formatList(l, disclosureAwaitingReview().map((x) => languageName(l, x))),
       }));
       expect(withoutIsolates(control(landing(base, l)))).toContain(withoutIsolates(esc(said)));
+      // The disclosure itself, in one line, is the control's own line of help: on the page, never only in help.
+      expect(control(landing(base, l))).toContain(`<p class="set-help">${esc(t(l, 'as.perm.disclosure'))}</p>`);
       gate.released = false;
-      expect(control(landing(base, l))).toContain(esc(t(l, 'autonomy.notReleased')));
+      expect(top(landing(base, l))).toContain(esc(t(l, 'autonomy.notReleased')));
+      expect(withoutIsolates(control(landing(base, l)))).not.toContain(withoutIsolates(esc(said)));
     });
 
-    it(`${l} · rule 2 — the name: until it is confirmed, the hold and its one door, and the Name row waits`, () => {
-      const html = renderEmployee({ ...base, assistantNamed: false }, l, null, ctx);
-      const c = control(html);
-      expect(c).toContain(esc(t(l, 'autonomy.needsName')));
-      // V1-420 — the door opens the Name screen, where the name is confirmed.
-      expect(c).toContain(`href="/app/settings/assistant/name">${esc(t(l, 'autonomy.confirmName'))}`);
+    it(`${l} · rule 2 — the name: until it is confirmed, the hold and its one door`, () => {
+      const html = withAssistantName('Lily', () => renderEmployee({ ...base, assistantNamed: false }, l, null));
+      const held = top(html);
+      expect(held).toContain(esc(t(l, 'her.handles.held.why.name')));
+      // V1-420 — the door opens the Name page, where the name is confirmed.
+      expect(held).toContain(`<a href="/app/settings/assistant/name">${esc(t(l, 'autonomy.confirmName'))}</a>`);
       // w4-business-assistant-02 — a name not confirmed yet is a setting to finish, not a customer waiting: no waiting colour.
-      expect(html).toMatch(new RegExp(`href="/app/settings/assistant/name">[\\s\\S]*?<span class="sr-value"><bdi>${esc(t(l, 'her.menu.name.unconfirmed'))}</bdi>`));
-      expect(control(landing(base, l))).not.toContain(esc(t(l, 'autonomy.needsName')));
+      expect(html).not.toMatch(/class="(?:pill|sr-value)[^"]*\bwarn\b/);
+      // Nothing is said to go out alone while it holds.
+      expect(html).not.toContain(`>${esc(t(l, 'her.handles.alone'))}</span>`);
+      expect(top(landing(base, l))).not.toContain(esc(t(l, 'her.handles.held.why.name')));
     });
 
-    it(`${l} · rule 13 — stopped, or paused by the operator: said first in the control, Start's door the owner's`, () => {
-      const stopped = control(landing({ ...base, stopped: true }, l));
+    it(`${l} · rule 13 — stopped, or paused by the operator: said first, before the control; Start's door the owner's`, () => {
+      const stopped = top(landing({ ...base, stopped: true }, l));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
       expect(stopped).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.body'))));
       expect(stopped).toContain('href="/app/settings/assistant/ready#stop"');
-      expect(stopped.indexOf('held-all')).toBeLessThan(stopped.indexOf('name="level"'));
-      const staff = control(landing({ ...base, stopped: true }, l, STAFF));
+      const staff = top(landing({ ...base, stopped: true }, l, STAFF));
       expect(staff).toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
-      expect(staff).not.toContain('href="/app/business/ready');
-      expect(control(landing({ ...base, silenced: true }, l))).toContain(esc(withAssistantName('Lily', () => t(l, 'today.silenced.title'))));
-      expect(control(landing(base, l))).not.toContain('held-all');
+      expect(staff).not.toContain('href="/app/settings/assistant/ready');
+      expect(top(landing({ ...base, silenced: true }, l))).toContain(esc(withAssistantName('Lily', () => t(l, 'today.silenced.title'))));
+      // Both at once: the operator's pause is said first.
+      const both = top(landing({ ...base, stopped: true, silenced: true }, l));
+      expect(both.indexOf(esc(withAssistantName('Lily', () => t(l, 'today.silenced.title'))))).toBeLessThan(both.indexOf(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title')))));
+      expect(top(landing(base, l))).not.toContain(esc(withAssistantName('Lily', () => t(l, 'today.stopped.title'))));
     });
   }
 });
@@ -324,20 +368,22 @@ describe('phase 7 · staff read where things stand; no form that would refuse th
     it(`${l}`, () => {
       const html = landing(base, l, STAFF);
       const c = control(html);
-      expect(c).not.toContain('<form');
-      expect(c).not.toContain('id="on-her-own"');
+      expect(c).not.toContain('<input');
       expect(c).toContain(esc(t(l, 'staff.ownerDecides')));
       expect(withoutIsolates(c)).toContain(withoutIsolates(esc(withAssistantName('Lily', () => t(l, 'autonomy.inForce.mixed')))));
-      expect(html).not.toContain('<form');
-      expect(withAssistantName('Lily', () => screen('one-kind', base, l, ctx, STAFF))).not.toContain('<form');
-      const named = withAssistantName('Lily', () => screen('name', base, l, ctx, STAFF));
+      // No form, no button, no field anywhere on the page: the kinds and the follow-up rule are read.
+      for (const tag of ['<form', '<button', '<input', '<textarea', '<select']) expect(html, `${l} ${tag}`).not.toContain(tag);
+      expect(html).toContain(esc(t(l, 'her.handles.always')));
+      const named = withAssistantName('Lily', () => namePage(base, l, STAFF));
+      for (const tag of ['<form', '<button', '<input']) expect(named, `${l} ${tag}`).not.toContain(tag);
       expect(named).not.toContain('href="/app/settings/people');
       expect(named).not.toContain('href="/app/onboarding"');
     });
   }
   it('a business with several assistants keeps the same page; the owner changes names where they all are (A5)', () => {
-    const named = screen('name', base, 'en', ctx);
+    const named = namePage(base, 'en');
     // The text cleanup (2026-11-26, the owner's approval): the list is on this page under one heading, with no link to itself above it.
     expect(named).not.toContain('href="/app/settings/assistant/name#assistants"');
+    expect(named).toContain('<section class="set-sec" id="assistants">');
   });
 });

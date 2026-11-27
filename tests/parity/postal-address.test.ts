@@ -29,15 +29,22 @@ describe('0133 · the postal address on Settings', () => {
     it(`${l} · the field, what it is for, and — while it is empty and e-mail can go first — that it is needed`, () => {
       const empty = withoutIsolates(renderProfile(profile(), l, null));
       expect(empty).toContain(esc(t(l, 'settings.field.postalAddress')));
-      expect(empty).toContain(esc(t(l, 'settings.desc.postalAddress')));
+      // Rule 104 — one line under the field (what it is for, and that nothing is sent while it is empty); the long
+      // explanation is in the page's help (English, like every guide).
+      expect(empty).toContain(esc(t(l, 'ws.profile.postal')));
+      expect(t('en', 'help.g.profile.3')).toContain('Your business is the sender of every first e-mail and follow-up');
+      expect(t('en', 'help.g.profile.3')).toContain('none is sent while the address is empty');
       expect(empty).toMatch(/<textarea id="pf-postal" name="postal_address" rows="3" maxlength="400" dir="auto"><\/textarea>/);
-      expect(empty).toContain(esc(t(l, 'settings.need.postalAddress')));
+      // Rule 104 — "needed" is the template's mark beside the field's name; the line under it says nothing is sent
+      // while it is empty.
+      const needed = `for="pf-postal">${esc(t(l, 'settings.field.postalAddress'))} <span class="set-need">${esc(t(l, 'set.needed'))}</span></label>`;
+      expect(empty).toContain(needed);
 
       const filled = withoutIsolates(renderProfile(profile({ postalAddress: ADDRESS }), l, null));
       expect(filled).toContain(`>${esc(ADDRESS)}</textarea>`);
-      expect(filled).not.toContain(esc(t(l, 'settings.need.postalAddress')));
+      expect(filled).not.toContain(needed);
       // nothing is written first without the outreach area, so nothing is needed
-      expect(withoutIsolates(renderProfile(profile({ outreachArea: false }), l, null))).not.toContain(esc(t(l, 'settings.need.postalAddress')));
+      expect(withoutIsolates(renderProfile(profile({ outreachArea: false }), l, null))).not.toContain(needed);
     });
   }
 

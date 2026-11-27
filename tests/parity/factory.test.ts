@@ -131,7 +131,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(html).toContain('Food-safe materials'); expect(html).toContain('BPA free');
     expect(html).not.toContain('>food_grade<');      // never an internal key on the page (the form's own value is not read)
     // The warmth run, phase 9 (w4-products-knowledge-02) — the one place they are switched: each on, in words.
-    expect(html).toMatch(/<b><bdi>Food-safe materials<\/bdi><\/b> <span class="pill ok">On<\/span>/);
+    // Rule 104 — a row of a table, its switch on and saying so.
+    expect(html).toMatch(/<th scope="row"><bdi>Food-safe materials<\/bdi><\/th><td class="as-act">(?:(?!<\/tr>)[\s\S])*aria-checked="true"(?:(?!<\/tr>)[\s\S])*<span class="set-state">On<\/span>/);
     expect(html).toContain('action="/app/knowledge/cert"');
     expect(html).toContain(shown('en', 'factory.promise.never'));      // default-deny, in owner language — true of this page now
     // meaning arrives before the tokens it explains
@@ -266,7 +267,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     for (const f of forms)
       expect(f[1]).toMatch(/^\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove)|pilot\/(end|resume))$|^\/app\/knowledge\/cert$/);
     expect(everything(complete)).not.toContain('<textarea');
-    expect(everything(complete)).not.toContain('<table');
+    // Rule 104 — the one table is the certifications' (a row each, its switch beside it); nothing else is tabulated.
+    expect(everything(complete).match(/<table[^>]*>/g)).toEqual(['<table class="team-table as-certs">']);
   });
 });
 
@@ -869,7 +871,7 @@ describe('Phase 9 · B5 · My business', () => {
       expect(html, l).toMatch(new RegExp(`href="/app/settings/business/selling">[^]*?<span class="sr-label">${esc(say(l, 'hs.questions.title'))}</span></span>`));
       expect(say(l, 'hs.questions.title'), l).not.toBe(say(l, 'factory.sellhow.title'));
       expect(html, l).toContain(esc(say(l, 'factory.sellhow.direct')));
-      for (const href of ['/app/settings/business/terms', '/app/settings/business/samples', '/app/settings/business/hours']) expect(html, `${l} ${href}`).toContain(`href="${href}"`);
+      for (const href of ['/app/settings/business/selling#terms', '/app/settings/business/selling#samples', '/app/settings/business/hours']) expect(html, `${l} ${href}`).toContain(`href="${href}"`);
     }
     expect(page('en')).not.toContain('exchange rate</p>');
     // the questions are the owner's (rule 11): a sales assistant sees the facts, never a door that refuses
@@ -884,14 +886,14 @@ describe('Phase 9 · B5 · My business', () => {
     for (const l of LOCALES) {
       for (const kind of ['brand', 'online_shop', 'retail', 'startup', 'agency', 'services', 'other']) {
         const html = screen('how', { ...audit, menu: menuOf(kind) }, l);
-        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/terms"');
-        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/samples"');
+        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/selling#terms"');
+        expect(html, `${l} ${kind}`).not.toContain('href="/app/settings/business/selling#samples"');
         expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/hours"');
       }
       for (const kind of ['manufacturer', 'trading', 'wholesale', null]) {
         const html = screen('how', { ...audit, menu: menuOf(kind) }, l);
-        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/terms"');
-        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/samples"');
+        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/selling#terms"');
+        expect(html, `${l} ${kind}`).toContain('href="/app/settings/business/selling#samples"');
       }
     }
   });
