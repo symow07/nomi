@@ -191,6 +191,10 @@ main:has(.bk-tb){max-width:100%;}
 @media(max-width:720px){.ba-sum{grid-template-columns:minmax(0,1fr);gap:var(--space-8);}.ba-fig{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-16);align-items:baseline;}.ba-fig dd{text-align:end;}.ba-period,.ba-source{grid-column:1/-1;}}
 @media(max-width:600px){.ba-money{grid-template-columns:minmax(0,1fr);gap:var(--space-8);}.ba-actions{flex-direction:column;}.ba-actions .btn{width:100%;}.ba-overview .ba-actions{flex-direction:row;gap:var(--space-8);}.ba-overview .ba-actions .btn{width:auto;}.ba-content .pform{max-width:100%;min-width:0;}}
 .bk-form,.bk-addform{margin:0;}
+.set-rows .bk-form>.setrow,.set-rows .bk-addform>.setrow,.set-rows .bf-choices>.setrow{padding-inline:0;}
+.settings-area .set-rows .bk-form>.setrow,.settings-area .set-rows .bk-addform>.setrow,.settings-area .set-rows .bf-choices>.setrow{padding-block:var(--space-12);}
+.set-rows .bk-form>.setrow+.setrow,.set-rows .bk-form>.bf-choices,.set-rows .bk-form>.bf-required{border-block-start:1px solid var(--color-border);}
+@media(min-width:721px){.settings-area .set-rows .bk-form>.setrow,.settings-area .set-rows .bf-choices>.setrow{grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:var(--space-8) var(--space-24);}}
 .bk-addform{margin-block-start:var(--space-12);}
 .bk-add{display:flex;gap:var(--space-8);align-items:flex-start;}
 .bk-add .set-pick{flex:1 1 auto;min-width:0;}
