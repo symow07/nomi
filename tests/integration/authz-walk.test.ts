@@ -1233,7 +1233,9 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
     // history or the workspace's standing.
     const ENDS = /\/(archive|remove|delete|discard|stop|disconnect|off|skip|revert|leave|dismiss|retire|end|unmatch|reject|cancel|lock|reopen|again|stale|drop)(\/|$)/;
     // A waiting cost's "skip" runs on its own row before any "post" (a drawn post form may take either row).
-    const lateness = (url: string) => /\/advisor-history\/(workspace|me)$/.test(url) ? 5 : /\/alerts\/phone\/:id\/remove$/.test(url) ? 2.5 : /\/products\/import\/:importId\/confirm$/.test(url) ? 2.6 : /\/proposals\/:id\/skip$/.test(url) ? 0.4 : /\/(forget|purge|erase|close|withdraw)(\/|$)/.test(url) ? 5 : /\/restore(\/|$)/.test(url) ? 4
+    // Rule 104 — the workspace's history switch is drawn on Data and privacy now, a page crawled before a person's own
+    // history: switched off first, it deletes everyone's and leaves the person's own switch nothing to do. So: after it.
+    const lateness = (url: string) => /\/advisor-history\/workspace$/.test(url) ? 6 : /\/advisor-history\/me$/.test(url) ? 5 : /\/alerts\/phone\/:id\/remove$/.test(url) ? 2.5 : /\/products\/import\/:importId\/confirm$/.test(url) ? 2.6 : /\/proposals\/:id\/skip$/.test(url) ? 0.4 : /\/(forget|purge|erase|close|withdraw)(\/|$)/.test(url) ? 5 : /\/restore(\/|$)/.test(url) ? 4
       : ENDS.test(url) ? 3 : /\/resume(\/|$)/.test(url) ? 2 : /\/(takeover|handto|step-in)(\/|$)/.test(url) ? 1
       // A draft is changed before it is issued or posted (after, it never changes).
       : /\/(issue|post)(\/|$)/.test(url) ? 0.5
@@ -1271,7 +1273,7 @@ d('Authorization audit · A\'s owner on every route with B\'s ids (requires DATA
       else attempts.push({ r, method: r.method, url: url + q, body: { kind: 'form', data: urlencoded(body) }, where: `reach ${key}`, late });
     }
     // Pages first, while C is as seeded: a page reads, and what a form changed must not decide whether it is drawn.
-    for (const a of [-1, -0.6, -0.5, 0, 0.4, 0.5, 0.6, 0.7, 0.75, 1, 2, 2.5, 2.6, 3, 4, 5].flatMap((k) => attempts.filter((x) => x.late === k))) {
+    for (const a of [-1, -0.6, -0.5, 0, 0.4, 0.5, 0.6, 0.7, 0.75, 1, 2, 2.5, 2.6, 3, 4, 5, 6].flatMap((k) => attempts.filter((x) => x.late === k))) {
       if (reach.get(`${a.r.method} ${a.r.url}`) === 'reached') continue;
       await tried(a.r, a.method, a.url, a.body, a.where);
     }
