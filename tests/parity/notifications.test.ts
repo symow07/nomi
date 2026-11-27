@@ -341,12 +341,15 @@ describe('the Notifications page, in every language', () => {
     it(`${l} · named Notifications; the two things said plainly; three ways; WhatsApp shown, disabled, saying what it needs`, () => {
       const html = withoutIsolates(renderPhoneAlerts(view(ownerWays()), l, null));
       expect(html).toContain(`<h1 class="page">${esc(t(l, 'alerts.title'))}</h1>`);
-      expect(html).toMatch(/<\/h1>\s*<p class="lede">/);
+      expect(html).toMatch(/<\/h1>\s*<p class="lede set-lede">/);
       expect(html).toContain(esc(t(l, 'alerts.lede')));
       expect(html).toContain(`<li>${esc(t(l, 'alerts.two.order'))}</li>`);
       expect(html).toContain(esc(withoutIsolates(t(l, 'alerts.two.handover'))).split('{name}')[0]!);
       expect(html).toContain(esc(t(l, 'alerts.rest')));
-      expect(html).toContain('<form method="post" action="/app/settings/alerts/channel">');
+      // Rule 104 — the way is a field of the page's ONE Save (the older route still answers).
+      expect(html).toContain('<form method="post" action="/app/settings/personal/notifications" class="set-form" data-save>');
+      expect(html.match(/<button class="btn send" type="submit">/g)).toHaveLength(1);
+      expect(html).toContain(`<button class="btn send" type="submit">${esc(t(l, 'autonomy.save'))}</button><button class="btn" type="reset">${esc(t(l, 'common.cancel'))}</button>`);
       // Phase 9 (settings-a-new-06) — the three ways are the rows of one card, like every sibling page's settings.
       expect(html).toContain('<fieldset class="scard ways" aria-labelledby="alerts-way">');
       expect(radios(html)).toEqual(['email*', 'browser', 'whatsapp-']);
@@ -361,7 +364,7 @@ describe('the Notifications page, in every language', () => {
       // (w4-settings-a-05) the e-mails that come whatever the way
       expect(html).toContain(esc(t(l, 'alerts.alsoMail')));
       // the phones are still here, under their own heading
-      expect(html).toContain(`<h2 class="sgroup-h" id="alerts-phones">${esc(t(l, 'alerts.phone.title'))}</h2>`);
+      expect(html).toContain(`<h2 class="set-h" id="alerts-phones">${esc(t(l, 'alerts.phone.title'))}</h2>`);
       expect(html).toContain('data-push-key="BKEY"');
       expect(html).not.toMatch(/\balerts\.[a-zA-Z_.]+/);
       expect(html).not.toMatch(/\bstaff\.[a-zA-Z_.]+/);
@@ -411,8 +414,9 @@ describe('the Notifications page, in every language', () => {
     expect(html).toContain(esc(t('en', 'alerts.phone.off')));
     // Phase 9 (w4-settings-a-08) — said once, on the way's own line: no empty section repeats it.
     expect(html).not.toContain('id="alerts-phones"');
-    // the only way that can be chosen is the one already ticked: nothing to save
-    expect(html).not.toContain(`>${esc(t('en', 'alerts.way.save'))}</button>`);
+    // the only way that can be chosen is the one already ticked: nothing to save, so no Save and no form
+    expect(html).not.toContain('data-save');
+    expect(html).not.toContain('type="submit"');
   });
 
   for (const l of LOCALES) {
@@ -424,12 +428,14 @@ describe('the Notifications page, in every language', () => {
       expect(bare).toContain(esc(t(l, 'alerts.way.email.none')));
       expect(bare).not.toContain(esc(t(l, 'alerts.way.fallback')));     // e-mail is no floor for them
       expect(bare).not.toContain(esc(t(l, 'alerts.alsoMail')));
-      expect(bare).not.toContain(`>${esc(t(l, 'alerts.way.save'))}</button>`);
+      expect(bare).not.toContain('data-save');
+      expect(bare).not.toContain('type="submit"');
       // WhatsApp reachable before approval: it may be chosen; nothing is ticked until it is
       const early = withoutIsolates(renderPhoneAlerts(view(ownerWays({ email: null, whatsapp: 'early', ownerPhone: '+971500000000' }), { publicKey: null }), l, null));
       expect(radios(early)).toEqual(['email-', 'browser-', 'whatsapp']);
       expect(early).toContain(`<p class="ways-none">${esc(t(l, 'alerts.way.notYet'))}</p>`);
-      expect(early).toContain(`>${esc(t(l, 'alerts.way.save'))}</button>`);
+      expect(early).toContain(`data-save>`);
+      expect(early).toContain(`<button class="btn send" type="submit">${esc(t(l, 'autonomy.save'))}</button>`);
       const chosen = withoutIsolates(renderPhoneAlerts(view(ownerWays({ email: null, whatsapp: 'early', ownerPhone: '+971500000000', choice: 'whatsapp' }), { publicKey: null }), l, null));
       expect(radios(chosen)).toEqual(['email-', 'browser-', 'whatsapp*']);
       expect(chosen).not.toContain('class="ways-none"');
@@ -459,15 +465,16 @@ describe('the Notifications page, in every language', () => {
     expect(alertWayNow(ownerWays({ email: null, whatsapp: 'early', ownerPhone: '+971500000000', choice: 'whatsapp' }), { publicKey: 'K', phones: [] })).toBe('whatsapp');
   });
 
-  it('PHASE 9 · Arabic names WhatsApp in its own script (w4-settings-a-07); the way back follows the door it was opened from (w4-settings-a-10)', () => {
+  it('PHASE 9 · Arabic names WhatsApp in its own script (w4-settings-a-07); rule 104 · the page starts with its title: the Settings menu is the way back', () => {
     const ar = renderPhoneAlerts(view(ownerWays()), 'ar', null);
     expect(ar).toContain(`<span class="way-n">واتساب</span>`);
     expect(ar).not.toContain('<span class="way-n">WhatsApp</span>');
     for (const l of LOCALES) {
-      const fromChannels = renderPhoneAlerts(view(ownerWays()), l, null, 'channels');
-      expect(fromChannels).toContain(`<a class="back" href="/app/settings/personal/notifications#whatsapp">${BACK}${esc(t(l, 'channels.alerts.title'))}</a>`);
-      expect(fromChannels).toContain('<input type="hidden" name="from" value="channels" />');
-      expect(renderPhoneAlerts(view(ownerWays()), l, null)).toContain(`<a class="back" href="/app/settings">`);
+      // The number's own screen is a section of this page now, so no way back leads to this same page.
+      const page = renderPhoneAlerts(view(ownerWays()), l, null);
+      expect(page.startsWith(`<h1 class="page">${esc(t(l, 'alerts.title'))}</h1>`), l).toBe(true);
+      expect(page).not.toContain('class="back"');
+      expect(page).not.toContain('name="from"');
     }
   });
 

@@ -549,7 +549,7 @@ describe('an order', () => {
 const OWNER: Viewer = { id: 'owner', isOwner: true };
 const DATA = { businessName: 'Atlas Trading', requests: [] };
 const PAGES: Record<string, (l: Locale) => string> = {
-  account: (l) => renderAccount({ email: null, passwordMin: 10 }, l, null, t(l, 'nav.settings')),
+  account: (l) => renderAccount({ email: null, passwordMin: 10 }, l, null),
   alerts: (l) => renderPhoneAlerts({ publicKey: 'BPk', phones: [] }, l, null),
   billing: (l) => renderBilling({ configured: false, state: { billed: false } as BillingView['state'], plans: [], people: 1, assistants: 1, returned: null }, l, null, t(l, 'nav.settings')),
   business: (l) => renderBusinessKind({ kind: 'manufacturer', country: 'CN', website: null }, l, null, t(l, 'nav.settings')),
@@ -573,18 +573,20 @@ describe('the settings pages', () => {
 
   it('V1-478 · V1-506 · V1-491 · V1-468 · each page leads back to where it is reached from, drawn the same way, the heading under it', () => {
     // Phase 7 — closures are reached from My business › How you sell; the gallery and the alerts are Setup's (/app/settings/setup).
-    const backs: Record<string, string> = { closures: '/app/settings/business/selling', forbidden: '/app/settings/assistant', components: '/app/settings', alerts: '/app/settings' };
+    // Rule 104 — Notifications is a page of the Settings menu in the one template: it starts with its title (the menu is the way back).
+    const backs: Record<string, string> = { closures: '/app/settings/business/selling', forbidden: '/app/settings/assistant', components: '/app/settings' };
     for (const l of LOCALES) for (const [p, href] of Object.entries(backs)) {
       expect(draw(p, l).trimStart().startsWith(`<a class="back" href="${href}">`), `${l}/${p}`).toBe(true);
     }
     expect(draw('alerts', 'en')).not.toContain('<div class="dhead">');
+    for (const l of LOCALES) expect(draw('alerts', l).trimStart().startsWith('<h1 class="page">'), `${l}/alerts`).toBe(true);
   });
 
   it('settings-a-new-09 · one intro style: the lede, under the heading', () => {
     // The owner, 2026-11-25: helper sentences that only remind are cut ("a lot of unnecessary comments"); this one went. Business's lede went.
     for (const p of ['alerts', 'billing', 'closures', 'forbidden']) {
       const h = draw(p, 'en');
-      expect(h, p).toMatch(/<\/h1>\s*<p class="lede">/);
+      expect(h, p).toMatch(/<\/h1>\s*<p class="lede(?: set-lede)?">/);
     }
   });
 
@@ -614,7 +616,8 @@ describe('the settings pages', () => {
     for (const l of LOCALES) expect(draw('alerts', l), l).toContain(shown(l, 'alerts.phone.none'));
     expect(t('en', 'alerts.phone.none')).toBe('None yet. Open this page on your phone and turn notifications on there.');  // the warmth run, phase 9 (w4-settings-a-06): one name, notifications
     const one = withoutIsolates(renderPhoneAlerts({ publicKey: 'BPk', phones: [{ id: '66666666-6666-4666-8666-666666666666', personId: null, endpoint: 'https://push.example/x', p256dh: 'k', auth: 'a', device: 'iPhone', createdAt: NOW }] }, 'en', null));
-    expect(one).toContain('<div class="scard"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
+    // Rule 104 — the same rows, in the template's row group.
+    expect(one).toContain('<div class="set-rows"><div class="setrow"><div class="fr-l"><span class="fr-name">iPhone</span>');
   });
 
   it('V1-469 · V1-471 · settings-a-new-05 · settings-a-new-06 · billing: the plan and what is charged, as rows; no software word', () => {

@@ -8,8 +8,8 @@ import { renderSpending } from '../../src/api/web/booksPapers.js';
 import { renderNewEntry } from '../../src/api/web/booksEntries.js';
 import { renderBooksChart, renderBooksOff, ACCOUNTANT_ALSO } from '../../src/api/web/books.js';
 import { renderPeople, type PeopleView } from '../../src/api/web/people.js';
-import { renderAccount } from '../../src/api/web/account.js';
-import { renderLanguage } from '../../src/api/web/settings.js';
+import { readFileSync } from 'node:fs';
+import { renderAccount, ACCOUNT_SAVE } from '../../src/api/web/account.js';
 import { renderPageFactsForm, isPasted, sourceLabel } from '../../src/api/web/pageFacts.js';
 import { shell } from '../../src/api/web/layout.js';
 import { withWorkspace, type RequestScope } from '../../src/api/web/say.js';
@@ -41,19 +41,23 @@ describe('B16 · readiness, one count', () => {
 
 describe('B18 · the accountant keeps their own sign-in', () => {
   it('the password and the language pages are theirs to reach', () => {
-    for (const r of ['GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language'])
+    for (const r of ['GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language', 'GET /app/settings/personal/account', 'POST /app/settings/personal/account'])
       expect(ACCOUNTANT_ALSO.has(r), r).toBe(true);
   });
-  it('their sign-in page leads back to the books and on to the language; the language page back to it', () => {
-    const acct = renderAccount({ email: 'a@x.example', passwordMin: 12, accountant: true }, 'en', null, t('en', 'nav.books'));
-    expect(acct).toContain('href="/app/books"');
-    expect(acct).toContain('href="/app/settings/personal/language"');
-    expect(acct).toContain('action="/app/settings/account/password"');
-    const owner = renderAccount({ email: 'o@x.example', passwordMin: 12 }, 'en', null, t('en', 'nav.setup'));
-    expect(owner).toContain('href="/app/settings"');
-    expect(owner).not.toContain('href="/app/settings/personal/language"');
-    expect(renderLanguage('en', true)).toContain('href="/app/settings/personal/account"');
-    expect(renderLanguage('en')).toContain('href="/app/settings"');
+  // Rewritten for rule 104: the language was a page of its own that the accountant's sign-in page led on to. It is a
+  // section of Account now, so the property B18 guards (an accountant can change their own password AND their own
+  // language, and get out) is held on the one page: both fields in its one Save, and Log out.
+  it('their sign-in page holds the password, the language and the way out, for them as for the owner', () => {
+    for (const v of [{ email: 'a@x.example', passwordMin: 12, accountant: true }, { email: 'o@x.example', passwordMin: 12 }]) {
+      const acct = renderAccount(v, 'en', null);
+      expect(acct).toContain(`<form method="post" action="${ACCOUNT_SAVE}" class="set-form" data-save>`);
+      expect(acct).toContain('name="current"');
+      expect(acct).toContain('<section class="set-sec" id="language"');
+      expect(acct).toMatch(/<select id="acc-language" name="language">(<option value="\w+" lang="\w+"( selected)?>[^<]+<\/option>){5}<\/select>/);
+      expect(acct).toContain('<form method="post" action="/logout"');
+      expect(acct).not.toContain('href="/app/settings/personal/language"');
+    }
+    expect(readFileSync('src/api/web/app.ts', 'utf8')).toContain("movedPage('/app/settings/personal/account#language')");
   });
   it('their rail is the books\' with a door to their sign-in, on every page they reach — never the sales side', () => {
     const page = (path: string) => withWorkspace(scope({ business: 'Atlas Soap', viewerRole: 'accountant' }), () =>

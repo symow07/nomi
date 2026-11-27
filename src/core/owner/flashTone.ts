@@ -185,6 +185,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'paymentLinks.flash.connected', 'paymentLinks.flash.saved', 'paymentLinks.flash.made', 'paymentLinks.flash.queued',
   'paymentLinks.flash.expired', 'paymentLinks.flash.disconnected', 'paymentLinks.flash.posted', 'paymentLinks.flash.checked',
   'followUp.flash.saved', 'followUp.flash.skipped',
+  // Rule 104 — a settings page's one Save, on Connections and You.
+  'set.flash.saved',
   'waCatalog.flash.saved', 'waCatalog.flash.pending', 'waCatalog.flash.submitted.one', 'waCatalog.flash.submitted.other', 'waCatalog.flash.finished', 'waCatalog.flash.empty',
   'card.flash.sent',
   // 0225 (Block 2 PR 1) — the country saved and its pack loaded, a state's rate added, the money accounts ticked.

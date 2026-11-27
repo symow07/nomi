@@ -4,7 +4,8 @@ import { setupFrom } from '../../src/db/setup.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { shell } from '../../src/api/web/layout.js';
 import { linkedCss } from './linked-css.js';
-import { menuRow, renderSetup, renderSettingsHome, renderLanguage } from '../../src/api/web/settings.js';
+import { menuRow, renderSetup, renderSettingsHome } from '../../src/api/web/settings.js';
+import { renderAccount } from '../../src/api/web/account.js';
 import { renderPilotReadiness, renderPilotRunbook, renderPilotScreen, renderPilotTechnical, practiceTasks, PILOT_SCREEN_PATH,
   type PilotReadiness, type PilotRunbook, type PilotFeedback } from '../../src/api/web/pilot.js';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
@@ -399,14 +400,19 @@ describe('w4-today-setup-25 · Setup\'s Notifications row: when nothing reaches 
   }
 });
 
-describe('w4-today-setup-29 · the language screen: five rows, the one in force said in words and to a screen reader', () => {
+// Rewritten for rule 104 (the owner's decision, 2026-11-27): the language screen of five rows is ONE select on
+// You › Account. What the item guarded stays: all five languages are offered, each in its own letters; exactly one is
+// in force and a screen reader hears which (a select's own selected option, under a label), never a class alone.
+describe('w4-today-setup-29 · the language: five choices, the one in force is the select\'s own selected option', () => {
   for (const l of LOCALES) {
     it(`${l}`, () => {
-      const html = renderLanguage(l);
-      expect(html.match(/<a class="srow sr-menu" href="\/locale\?set=/g)).toHaveLength(5);
-      expect(html.match(/aria-current="true"/g)).toHaveLength(1);
-      expect(html).toContain(`hreflang="${l}" aria-current="true"`);
-      expect(html).toContain(`<span class="sr-value ok"><bdi>${esc(t(l, 'settings.language.inUse'))}</bdi></span>`);
+      const html = renderAccount({ email: null, passwordMin: 12 }, l, null);
+      const select = /<select id="acc-language" name="language">([\s\S]*?)<\/select>/.exec(html)![1]!;
+      expect(select.match(/<option /g)).toHaveLength(5);
+      expect(select.match(/ selected>/g)).toHaveLength(1);
+      expect(select).toContain(`<option value="${l}" lang="${l}" selected>`);
+      for (const o of LOCALES) expect(select).toContain(`<option value="${o}" lang="${o}"`);
+      expect(html).toContain(`<label class="fr-name" for="acc-language">`);
       expect(html).not.toContain('class="langsw"');
     });
   }

@@ -178,15 +178,19 @@ describe('A1 · the two pages a stranger may see', () => {
 
 describe('A1 · "how do I sign in?"', () => {
   it('shows HER address and changes the password only against the one she has now', () => {
-    const html = renderAccount({ email: 'mei@atlas.example', passwordMin: PASSWORD_MIN }, 'en', null, 'Settings');
+    const html = renderAccount({ email: 'mei@atlas.example', passwordMin: PASSWORD_MIN }, 'en', null);
     expect(html).toContain('mei@atlas.example');
     expect(html).toMatch(/name="current"[^>]*autocomplete="current-password"/);
     expect(html).toMatch(/name="next"[^>]*autocomplete="new-password"/);
   });
 
   it('someone who came in with an access code is told there is nothing to change, not given a form that cannot work', () => {
-    const html = renderAccount({ email: null, passwordMin: PASSWORD_MIN }, 'en', null, 'Settings');
-    expect(html).not.toContain('<form');
+    const html = renderAccount({ email: null, passwordMin: PASSWORD_MIN }, 'en', null);
+    // Rewritten for rule 104: the page has a form now (its one Save keeps the language, and Log out is a button), so
+    // the property is held on the fields: no password field is offered to someone who has no password.
+    expect(html).not.toContain('type="password"');
+    expect(html).not.toContain('name="current"');
+    expect(html).not.toContain('name="next"');
     expect(html).toContain(t('en', 'account.codeOnly'));
   });
 });

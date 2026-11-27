@@ -182,6 +182,8 @@ const BOOKS_ROUTES: readonly { readonly method: 'GET' | 'POST'; readonly url: st
 export const ACCOUNTANT_ALSO: ReadonlySet<string> = new Set([
   'GET /app/settings/personal/account', 'GET /app/settings/personal/language',
   'POST /logout', 'GET /app/help/page', 'GET /app/settings/account', 'POST /app/settings/account/password', 'GET /app/settings/language',
+  // Rule 104 — Account's one Save: their own password and their own language.
+  'POST /app/settings/personal/account',
 ]);
 
 export const booksRouteOf = (method: string, url: string | undefined): (typeof BOOKS_ROUTES)[number] | null =>

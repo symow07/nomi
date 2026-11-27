@@ -141,8 +141,8 @@ import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } f
 import { practiceMediaKind } from '../../db/practiceMedia.js';
 import { decryptSecret, encryptSecret, credentialFingerprint } from '../../security/credentials.js';
 import {
-  loadChannels, renderChannelScreen, renderNotificationNumber, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
-  channelScreenHref, channelScreenTitle, screenOfChannel,
+  loadChannels, renderChannelScreen, notificationNumberSection, renderConnectGuide, channelFlash, CHANNEL_SCREENS, CHANNELS_HOME,
+  channelScreenHref, channelScreenTitle, screenOfChannel, EMAIL_SAVE, type ChannelScreen, type EmailKept,
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber, hostChannelsFor,
 } from './channels.js';
 import {
@@ -175,7 +175,7 @@ import { notifyOperatorOfSignup } from '../../pipeline/notify.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
 import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS, FAVICON_ICO } from './appIcons.js';
-import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, alertsFrom, type PushOut } from './phoneAlerts.js';
+import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, loadAlertWays, chooseAlertWay, alertWayNow, alertsFrom, NOTIFICATIONS_SAVE, type AlertsKept, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -195,7 +195,7 @@ import { handToAssistant } from '../../conversations/assistant.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
 import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
-import { setSendingDomain } from '../../db/sendingDomain.js';
+import { setSendingDomain, sendingDomain } from '../../db/sendingDomain.js';
 import { applyUnsubscribe, claimFrom, renderUnsubscribe, renderUnsubscribed } from './unsubscribe.js';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { suppressionFor } from '../../core/outreach/events.js';
@@ -243,7 +243,7 @@ import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
 import { markPromiseKept } from '../../db/promisedDates.js';
 import { settingsProfileValue } from './settings.js';
-import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
+import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
@@ -258,7 +258,7 @@ import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { aloneNow } from '../../core/conversation/aloneNow.js';
 import {
-  loadPilotRunbook, renderPilotRunbook, renderPilotTechnical, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
+  loadPilotRunbook, renderPilotRunbook, renderTechnicalSection, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
   renderPilotScreen,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
@@ -307,7 +307,8 @@ import {
   newOtpCode, otpHash, mintPendingOtp, readPendingOtp, mintKnownDevice, isKnownDevice, maskEmail,
   OTP_TTL_SECONDS, PENDING_TTL_MS, DEVICE_TTL_MS, type OtpPurpose,
 } from '../../security/otp.js';
-import { renderAccount } from './account.js';
+import { renderAccount, ACCOUNT_SAVE } from './account.js';
+import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { loadBusinessKind, saveBusinessKind, renderBusinessKind, businessKindProblem } from './businessKind.js';
 import { tradesForExport } from '../../core/owner/sellingStyle.js';
 import { keepsMoroccanBooks } from '../../core/books/identifiers.js';
@@ -1201,6 +1202,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     /^\/app\/settings\/data\/(close|delete|withdraw)$/,
     /^\/app\/conversations\/[^/]+\/deletion(\/(erase|dismiss))?$/,
     /^\/app\/settings\/account\/password$/,
+    // Rule 104 — Account's one Save carries the password (and the person's own language): still theirs when frozen.
+    /^\/app\/settings\/personal\/account$/,
     /^\/app\/settings\/people\/[^/]+\/remove$/,
     /^\/app\/settings\/alerts\/phone\/[^/]+\/remove$/,
     /^\/app\/connect\/(mail|meta|whatsapp)\/disconnect$/,
@@ -2650,10 +2653,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     const flash = takeFlash(req, reply);
-    // B18 — an accountant's way back is the books, and their language is a door from here (they have no Setup).
     const accountant = personOf(s).kind === 'accountant';
-    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn, accountant }, locale, flash,
-      t(locale, accountant ? 'nav.books' : 'nav.setup'));
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn, accountant }, locale, flash);
   }));
 
   /**
@@ -4853,20 +4854,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return flashTo(reply, '/app/settings/data', `data.flash.${r}` as MessageKey);
   });
 
-  app.post('/app/settings/account/password', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
-    const locale = localeOf(req);
-    const b = (req.body ?? {}) as { current?: string; next?: string };
-    const done = (key: MessageKey) =>
-      flashTo(reply, '/app/settings/account', key, { n: PASSWORD_MIN });
+  /**
+   * The password, changed against the present one. One function for the older route and for Account's one Save
+   * (rule 104): what it answers is the notice's key, and for a refusal about one field, which field.
+   */
+  const changePassword = async (s: OwnerSession, reply: FastifyReply, current: string, next: string):
+    Promise<{ readonly key: MessageKey; readonly field?: 'current' | 'next' }> => {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
-    if (!bid.ok || !mine) return done('account.flash.failed');
-    if (!loginThrottle.allow(`pw:${personOf(s).id}`, Date.now())) return done('account.flash.failed');
-    if (!(await verifyPassword(String(b.current ?? ''), mine.passwordHash))) return done('account.flash.wrong');
-    const next = String(b.next ?? '');
-    if (next.length < PASSWORD_MIN || next.length > PASSWORD_MAX) return done('account.flash.short');
+    if (!bid.ok || !mine) return { key: 'account.flash.failed' };
+    if (!loginThrottle.allow(`pw:${personOf(s).id}`, Date.now())) return { key: 'account.flash.failed' };
+    if (!(await verifyPassword(current, mine.passwordHash))) return { key: 'account.flash.wrong', field: 'current' };
+    if (next.length < PASSWORD_MIN || next.length > PASSWORD_MAX) return { key: 'account.flash.short', field: 'next' };
     const saved = await setPassword(deps.db, bid.value, personOf(s).id, await hashPassword(next)).catch(() => false);
     if (saved) {
       // S1 — every OTHER session she has open ends now; this one is re-issued
@@ -4876,7 +4875,63 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       setCookie(reply, codec.sign({ businessId: s.businessId, exp: Date.now() + SESSION_TTL_MS, person: personOf(s), ...(pv === undefined ? {} : { pv }) }),
         Math.floor(SESSION_TTL_MS / 1000));
     }
-    return done(saved ? 'account.flash.changed' : 'account.flash.failed');
+    return { key: saved ? 'account.flash.changed' : 'account.flash.failed' };
+  };
+  app.post('/app/settings/account/password', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as { current?: string; next?: string };
+    const r = await changePassword(s, reply, String(b.current ?? ''), String(b.next ?? ''));
+    return flashTo(reply, '/app/settings/account', r.key, { n: PASSWORD_MIN });
+  });
+
+  /**
+   * The language a person reads Nomi in: the cookie, and for the signed-in OWNER the language their alerts use (a
+   * colleague switching their own page leaves the owner's alerts alone; a link from another site switches the page
+   * but never the alerts — the IDOR audit, 2026-10-08). One function for `/locale` and for Account's one Save.
+   */
+  const applyLocale = async (req: FastifyRequest, reply: FastifyReply, set: Locale): Promise<void> => {
+    setLocaleCookie(reply, set);
+    const s = sessionOf(req);
+    const bid = s && personOf(s).isOwner && req.headers['sec-fetch-site'] !== 'cross-site' ? parseBusinessId(s.businessId) : null;
+    if (bid?.ok) {
+      try {
+        await withTenantTx(deps.db, bid.value, (tx) =>
+          sql`update businesses set owner_locale = ${set} where id = ${bid.value}`.execute(tx));
+      } catch { /* best-effort: the cookie already applied the switch */ }
+    }
+  };
+
+  /**
+   * Rule 104 — Account's ONE Save: the password (only when the person filled its fields) and the language. Checked
+   * first: a refusal about the password sends the page back with the reason under its field and nothing saved, the
+   * language included. A password is never drawn back.
+   */
+  app.post(ACCOUNT_SAVE, async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as { current?: string; next?: string; language?: string };
+    const current = String(b.current ?? ''), next = String(b.next ?? '');
+    const language = parseLocale(b.language);
+    const bid = parseBusinessId(s.businessId);
+    const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
+    const sentBack = (errors: { current?: string; next?: string }) => reply.code(422).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'settingsArea.account'), active: 'settings',
+      bodyHtml: renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN, recovery: recoveryOn, accountant: personOf(s).kind === 'accountant',
+        errors, ...(language ? { keptLanguage: language } : {}) }, locale, null),
+    }));
+    let changed = false;
+    if (current !== '' || next !== '') {
+      if (current === '') return sentBack({ current: t(locale, 'set.account.pw.both') });
+      if (next === '') return sentBack({ next: t(locale, 'set.account.pw.both') });
+      const r = await changePassword(s, reply, current, next);
+      if (r.field) return sentBack({ [r.field]: t(locale, r.key, { n: PASSWORD_MIN }) });
+      if (r.key !== 'account.flash.changed') return flashTo(reply, ACCOUNT_SAVE, r.key, { n: PASSWORD_MIN });
+      changed = true;
+    }
+    if (language && language !== locale) await applyLocale(req, reply, language);
+    return flashTo(reply, ACCOUNT_SAVE, changed ? 'account.flash.changed' : 'set.flash.saved');
   });
 
   // V1 close-out — Setup signs out with a BUTTON (a form that posts here):
@@ -4902,20 +4957,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = req.query as { set?: string; next?: string };
     const set = parseLocale(q.set);
     const next = localPath(q.next) ?? '/app';
-    if (set) {
-      setLocaleCookie(reply, set);
-      // Persist for the logged-in OWNER so WhatsApp alerts use the same language: the owner's alerts are the
-      // owner's, so a member of staff switching their own page leaves them alone, and a link from another site
-      // switches the page but never the alerts (the IDOR audit, 2026-10-08).
-      const s = sessionOf(req);
-      const bid = s && personOf(s).isOwner && req.headers['sec-fetch-site'] !== 'cross-site' ? parseBusinessId(s.businessId) : null;
-      if (bid?.ok) {
-        try {
-          await withTenantTx(deps.db, bid.value, (tx) =>
-            sql`update businesses set owner_locale = ${set} where id = ${bid.value}`.execute(tx));
-        } catch { /* best-effort: the cookie already applied the switch */ }
-      }
-    }
+    // Persist for the logged-in OWNER so WhatsApp alerts use the same language (`applyLocale`).
+    if (set) await applyLocale(req, reply, set);
     return reply.redirect(next);
   });
 
@@ -6085,11 +6128,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     facts.evict(s.businessId);
     return flashTo(reply, channelScreenHref('telegram'), on ? 'channels.telegram.flash.on' : 'channels.telegram.flash.off');
   });
-  for (const screen of CHANNEL_SCREENS) {
-    if(screen==='alerts') continue;
-    app.get(settingsHref(channelScreenHref(screen)), async (req, reply) => {
-      const s = sessionOf(req);
-      if (!s) return reply.redirect('/login');
+  /** One channel's page (rule 104: the same page a refused Save is sent back as, with what was typed kept). */
+  const channelScreenPage = async (req: FastifyRequest, reply: FastifyReply, s: OwnerSession, screen: ChannelScreen, emailKept?: EmailKept) => {
       const locale = localeOf(req);
       const flash = takeFlash(req, reply);
       const bid = parseBusinessId(s.businessId);
@@ -6120,20 +6160,63 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
       // 0215 — TikTok: the account she connected, read for its screen.
       const tt = screen === 'tiktok' && bid.ok && tiktokReady() ? await withTenantTx(deps.db, bid.value, (tx) => liveTikTokAccount(tx, bid.value)) : null;
-      return reply.type('text/html; charset=utf-8').send(page(req, {
+      return reply.code(emailKept ? 422 : 200).type('text/html; charset=utf-8').send(page(req, {
         title: channelScreenTitle(locale, screen), active: 'channels',
         bodyHtml: renderChannelScreen(screen, data, locale, flash, personOf(s), {
           ...(accounts ? { accountsHtml: renderAccounts(accounts, locale, personOf(s), inbound, 'mail') } : {}),
+          ...(accounts?.mail && !accounts.mail.needsAttention ? { mailDisconnect: { address: accounts.mail.address } } : {}),
+          ...(emailKept ? { emailKept } : {}),
           inbound, ...(yours ? { yourAccountsHtml: renderYourAccounts(yours, locale) } : {}), metaReview: deps.metaReview ?? null,
           chatPage: { served: deps.chatIngest !== undefined, url: chatKey ? `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/chat/${chatKey}` : null },
           telegram: { served: deps.telegramBot !== undefined, url: tgCode && deps.telegramBot ? `https://t.me/${deps.telegramBot.username}?start=${tgCode}` : null, greeting: tgGreeting },
           tiktok: { served: tiktokReady() !== null, account: tt ? { username: tt.username, needsAttention: tt.needsAttention !== null, euMessages: tt.euMessages, euLastAt: tt.euLastAt } : null },
-        }) + (screen==='meta'?`<p><a class="deeper" href="${settingsHref('/app/channels/instagram/comments')}">${sayOnPage(locale,'igComments.title')}${GO}</a></p>`:''),
+        }),
         // CH1 — the screen says when a first message arrives, or a connection changes.
         ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
       }));
+  };
+  for (const screen of CHANNEL_SCREENS) {
+    if(screen==='alerts') continue;
+    app.get(settingsHref(channelScreenHref(screen)), async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      return channelScreenPage(req, reply, s, screen);
     });
   }
+  /**
+   * Rule 104 — E-mail's ONE Save: the sending domain, the key name of its signature record and, where a first e-mail
+   * can leave, the most first e-mails a day. Everything is checked first; a refusal sends the page back with what was
+   * typed and the reason under its field, and nothing is saved. Then the same writes the older routes make
+   * (`setSendingDomain`, `setOutreach`), each only where its value changed. Owner-only, as they are.
+   */
+  app.post(EMAIL_SAVE, async (req, reply) => {
+    const sess = await ownerOnly(req, reply, 'outreach', channelScreenHref('email'));
+    if (!sess) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const bid = parseBusinessId(sess.businessId);
+    if (!bid.ok) return flashTo(reply, channelScreenHref('email'), 'domain.flash.failed');
+    const typed = { domain: String(b['domain'] ?? '').trim(), selector: String(b['selector'] ?? '').trim(), ...(typeof b['cap'] === 'string' ? { cap: b['cap'].trim() } : {}) };
+    const domain = typed.domain.toLowerCase();
+    const selector = typed.selector.toLowerCase() || 'nomi';
+    const now = await withTenantTx(deps.db, bid.value, async (tx) => ({ domain: await sendingDomain(tx, bid.value), email: (await outreachSettings(tx, bid.value)).get('email') }));
+    // An empty domain where none was ever saved is nothing to save; emptied where one is saved is a refusal.
+    const domainGiven = domain !== '' || now.domain !== null;
+    const shaped = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain) && /^[a-z0-9][a-z0-9-]*$/.test(selector);
+    const cap = typed.cap === undefined ? undefined : typed.cap === '' ? null : /^\d{1,5}$/.test(typed.cap) && Number(typed.cap) >= 1 ? Number(typed.cap) : false;
+    const errors = {
+      ...(domainGiven && !shaped ? { domain: t(locale, 'domain.flash.invalid') } : {}),
+      ...(cap === false ? { cap: t(locale, 'outreach.flash.failed') } : {}),
+    };
+    if (Object.keys(errors).length) return channelScreenPage(req, reply, sess, 'email', { ...typed, errors });
+    const domainChanged = domainGiven && (now.domain?.domain !== domain || now.domain.dkimSelector !== selector);
+    const capChanged = cap !== undefined && cap !== false && (now.email?.dailyCap ?? null) !== cap;
+    await withTenantTx(deps.db, bid.value, async (tx) => {
+      if (domainChanged) await setSendingDomain(tx, bid.value, { domain, dkimSelector: selector, by: personOf(sess).name });
+      if (capChanged) await setOutreach(tx, bid.value, { channel: 'email', enabled: now.email?.enabled === true, by: personOf(sess).name, dailyCap: cap as number | null });
+    });
+    return flashTo(reply, channelScreenHref('email'), domainChanged ? 'domain.flash.saved' : 'set.flash.saved');
+  });
 
   // ── Nomi Phase E · My factory ──────────────────────────────────────────────
   // One calm page over the EXISTING profile / products / claims / channel read
@@ -6166,9 +6249,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const bid = parseBusinessId(s.businessId);
       const approval = screen === 'channels' && bid.ok
         ? await withTenantTx(deps.db, bid.value, (tx) => approvalState(tx, bid.value)).catch(() => null) : null;
+      // Rule 104 — technical details are the Channels page's last section, for whoever their page was for.
+      const technical = screen === 'channels' && technicalFor(s)
+        ? renderTechnicalSection(locale, await technicalParts(s), (req.query as { open?: unknown } | undefined)?.open === 'technical') : '';
       return { title: BUSINESS_SCREEN_TITLE[screen](locale),
         bodyHtml: renderBusinessScreen(screen, menu ? { ...view, menu } : view, locale, flash, personOf(s),
-          approval ? { approvalHtml: renderApprovalCard(approval, locale, personOf(s), deps.legalContact ?? null) } : {}) };
+          { ...(approval ? { approvalHtml: renderApprovalCard(approval, locale, personOf(s), deps.legalContact ?? null) } : {}),
+            ...(technical ? { technicalHtml: technical } : {}) }) };
     }));
   }
 
@@ -7631,12 +7718,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // G6 — and the installation's: it describes this deployment, not a
   // workspace, so only the owner of the installation's own workspace reaches
   // it. Anyone else is told there is no such page.
+  // Rule 104 — the page is the LAST section of Settings › Channels now (`#technical`, folded, read-only); this
+  // address answers with it, opened, for the same person as before and nobody else.
   app.get('/app/settings/channels/technical', {
     preHandler: async (req, reply) => {
       const s = sessionOf(req);
       if (s && s.businessId !== deps.businessId) return reply.callNotFound();
     },
-  }, ownerPage('messaging_activation', 'onboarding', '/app/onboarding', async (s, _req, _reply, locale) => {
+  }, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    if (!s) return reply;
+    return reply.redirect(`${CHANNELS_HOME}?open=technical#technical`, 302);
+  });
+  /** Who the technical details are for: the owner of the installation's own workspace. */
+  function technicalFor(s: OwnerSession): boolean {
+    return s.businessId === deps.businessId && mayDo(personOf(s), 'messaging_activation');
+  }
+  async function technicalParts(s: OwnerSession) {
     // M17.1: which build is running — owner-authenticated only, never on /health.
     const deployment = readDeployment(process.env, new Date(), process.uptime());
     // M17.2: go-live preparation status. Reads shapes only — never a value, and
@@ -7666,10 +7764,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // the owner cannot fix it and did not cause it. Zero on any factory
     // provisioned after M29, which is the point.
     const unauthored = await countUnauthoredPriceRules(deps.db, s.businessId);
-    return renderPilotTechnical(locale, {
-      deployment, meta, rehearsal, templateState: deps.templateState ?? 'none', unauthoredPriceRules: unauthored,
-    });
-  }));
+    return { deployment, meta, rehearsal, templateState: deps.templateState ?? 'none', unauthoredPriceRules: unauthored };
+  }
 
   // Phase 4 — Getting ready's answers are the owner's: each one is a
   // condition for going live, and going live is the owner's call.
@@ -7794,10 +7890,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   // Rule 104: the older group addresses show the one Settings menu page.
   app.get('/app/settings/personal', authed('settings',(s,req,locale,reply)=>({title:t(locale,'nav.settings'),bodyHtml:renderSettingsIndex(locale,takeFlash(req,reply),personOf(s))})));
-  // Phase 7 — the language switch, a tap down from Setup's Language row.
-  app.get('/app/settings/personal/language', authed('settings', (_s, _req, locale) => ({
-    title: t(locale, 'settings.language.title'), bodyHtml: renderLanguage(locale, viewerRole() === 'accountant'),
-  })));
+  // Rule 104 — the language is ONE select on You › Account (`#language`), saved with that page's Save. The older
+  // address answers with it; `/locale?set=` still switches for anything that learned it as a link.
+  app.get('/app/settings/personal/language', movedPage('/app/settings/personal/account#language'));
   // The design pass (UI-PASS 7) — the business profile, on its own page.
   // ── G5b Alerts on your phone: anyone signed in turns them on for their own phone ──
   const phonePerson = (s: OwnerSession): string | null => {
@@ -7808,13 +7903,68 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // outside Nomi, how it reaches this person (their own choice, 0124), and the phones.
   const whatsappApproved = (): boolean => deps.metaReview?.state === 'approved';
   // Phase 9 (w4-settings-a-10) — opened from the channels screen's card, its way back leads there.
-  app.get('/app/settings/personal/notifications', authed('settings', async (s, req, locale, reply) => ({
-    title: t(locale, 'alerts.title'),
-    bodyHtml: renderPhoneAlerts({
-      ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
-      ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
-    }, locale, takeFlash(req, reply), alertsFrom((req.query as { from?: unknown } | undefined)?.from)) + renderNotificationNumber(await loadChannels(deps.db,s.businessId,whatsappConfigured,deps.templateState??'none',hostChannels(s.businessId).number),locale,personOf(s)),
+  // Rule 104 — the page as it is drawn, and as a refused Save is sent back (what was typed kept, the reason under its field).
+  const notificationsView = async (s: OwnerSession) => ({
+    ...await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null),
+    ways: await loadAlertWays(deps.db, s.businessId, personOf(s).id, whatsappApproved()),
+  });
+  const notificationsBody = async (s: OwnerSession, req: FastifyRequest, reply: FastifyReply, locale: Locale,
+    kept?: AlertsKept & { readonly phone?: string; readonly phoneBad?: boolean }): Promise<string> => {
+    const number = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none', hostChannels(s.businessId).number);
+    return renderPhoneAlerts(await notificationsView(s), locale, takeFlash(req, reply), {
+      numberHtml: notificationNumberSection(number, locale, personOf(s), kept?.phone === undefined ? undefined : { phone: kept.phone, invalid: kept.phoneBad === true }),
+      numberIsField: personOf(s).isOwner, ...(kept ? { kept } : {}),
+    });
+  };
+  app.get(NOTIFICATIONS_SAVE, authed('settings', async (s, req, locale, reply) => ({
+    title: t(locale, 'alerts.title'), bodyHtml: await notificationsBody(s, req, reply, locale),
   })));
+  /**
+   * Rule 104 — Notifications' ONE Save: the way, the morning summary with its quiet hours, and the notification
+   * number. Everything sent is checked first; a refusal sends the page back with what was typed and the reason under
+   * its field, and nothing is saved. Then the existing saves, each only for what was on the form and changed: the
+   * way a person did not change is not written (so the owner's default stays "the default"), and the number is the
+   * owner's alone, as its own route holds it.
+   */
+  app.post(NOTIFICATIONS_SAVE, async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const bid = parseBusinessId(s.businessId);
+    const isOwner = personOf(s).isOwner;
+    const morningSent = isOwner && b['morning'] === '1';
+    const quiet = morningSent ? parseQuietHours(b['quietFrom'], b['quietUntil']) : null;
+    const phoneSent = isOwner && mayDo(personOf(s), 'messaging_activation') && typeof b['phone'] === 'string';
+    const phone = phoneSent ? validateOwnerPhone(String(b['phone'])) : null;
+    const quietBad = morningSent && !quiet, phoneBad = phone !== null && !phone.ok;
+    if (!bid.ok) return flashTo(reply, NOTIFICATIONS_SAVE, 'alerts.flash.bad');
+    if (quietBad || phoneBad) {
+      const body = await notificationsBody(s, req, reply, locale, {
+        ...(typeof b['channel'] === 'string' ? { channel: b['channel'] } : {}),
+        ...(morningSent ? { morningOn: b['on'] === '1', quietFrom: String(b['quietFrom'] ?? ''), quietUntil: String(b['quietUntil'] ?? ''), quietBad } : {}),
+        ...(phoneSent ? { phone: String(b['phone']), phoneBad } : {}),
+      });
+      return reply.code(422).type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'alerts.title'), active: 'settings', bodyHtml: body }));
+    }
+    // The way: written only when the person chose another than the one in use.
+    let wayBad = false;
+    if (typeof b['channel'] === 'string') {
+      const view = await notificationsView(s);
+      if (view.ways && alertWayNow(view.ways, view) !== b['channel']) {
+        wayBad = (await chooseAlertWay(deps.db, s.businessId, personOf(s).id, b['channel'], { approved: whatsappApproved(), pushOn: Boolean(deps.push) })) === null;
+      }
+    }
+    let morningFailed = false;
+    if (morningSent && quiet) {
+      morningFailed = !(await withTenantTx(deps.db, bid.value, (tx) =>
+        saveMorningSetting(tx, bid.value, { on: b['on'] === '1', quietFrom: quiet.from, quietUntil: quiet.until })).catch(() => false));
+    }
+    if (phone?.ok) {
+      const current = (await loadChannels(deps.db, s.businessId, whatsappConfigured)).ownerPhone;
+      if ((current ?? '') !== (phone.value ?? '')) await saveOwnerPhone(deps.db, s.businessId, String(b['phone']), personOf(s).id);
+    }
+    return flashTo(reply, NOTIFICATIONS_SAVE, wayBad ? 'alerts.flash.wayBad' : morningFailed ? 'alerts.flash.morningBad' : 'set.flash.saved');
+  });
   app.post('/app/settings/alerts/channel', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, string | undefined>;

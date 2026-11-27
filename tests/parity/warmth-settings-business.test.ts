@@ -6,7 +6,7 @@ import {
   type BusinessScreen, type FactoryView,
 } from '../../src/api/web/factory.js';
 import {
-  renderSetup, renderLanguage, renderProfile, renderTerms, renderSamples, renderClosures, renderRate, type SetupView,
+  renderSetup, renderProfile, renderTerms, renderSamples, renderClosures, renderRate, type SetupView,
 } from '../../src/api/web/settings.js';
 import { renderBusinessKind } from '../../src/api/web/businessKind.js';
 import { renderPriceRules } from '../../src/api/web/priceRules.js';
@@ -120,7 +120,8 @@ describe('phase 7 · every former section is one tap from the landing', () => {
     ['factory.prices.title', '/app/products/price-limits'], ['factory.sellhow.title', BUSINESS_SCREEN_PATH.how],
     ['factory.reach.title', BUSINESS_SCREEN_PATH.channels], ['business.row.live', BUSINESS_SCREEN_PATH.ready],
   ];
-  const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/language',
+  // Rule 104 — the language is a section of You › Account (one select, saved with the page's Save).
+  const FORMER_SETUP = ['/app/guide', '/app/onboarding', '/app/settings/personal/notifications', '/app/settings/personal/account#language',
     '/app/settings/team', '/app/settings/personal/account', '/app/settings/billing', '/app/settings/business/data'];
 
   for (const l of LOCALES) {
@@ -194,7 +195,15 @@ describe('phase 7 · the channels have ONE home: My business', () => {
       expect(row.label).toBe(inScope(() => esc(t(l, 'factory.reach.title'))));
       expect(row.value).toBe(`${inScope(() => t(l, 'reach.channel.whatsapp'))} · ${inScope(() => t(l, 'reach.channel.instagram'))}`);
       // Phase 9 (w4-business-assistant-05) — a row per channel, each opening its own screen once.
-      for (const s of CHANNEL_SCREENS) expect(screen('channels', l).split(`href="${s==='alerts'?'/app/settings/personal/notifications#whatsapp':'/app/settings/channels/'+s}"`).length - 1, `${l} ${s}`).toBe(1);
+      // Rule 104 (the owner's condition 3) — a channel this installation cannot connect is a row that says so and
+      // opens nothing: no door to an empty page. Every other channel's row opens its screen once.
+      const cannot = ['chat', 'telegram', 'tiktok'];
+      for (const s of CHANNEL_SCREENS) expect(screen('channels', l).split(`href="${s==='alerts'?'/app/settings/personal/notifications#whatsapp':'/app/settings/channels/'+s}"`).length - 1, `${l} ${s}`).toBe(cannot.includes(s) ? 0 : 1);
+      for (const k of ['reach.channel.web_chat', 'reach.channel.telegram', 'reach.channel.tiktok'] as const) {
+        const at = screen('channels', l).indexOf(`<span class="sr-label">${inScope(() => esc(t(l, k)))}</span>`);
+        expect(at, `${l} ${k}`).toBeGreaterThan(0);
+        expect(screen('channels', l).slice(at, at + 400), `${l} ${k}`).toContain(inScope(() => esc(t(l, 'connect.state.notHere'))));
+      }
       const s = setup(l);
       for (const gone of ['href="/app/channels"', `href="${BUSINESS_SCREEN_PATH.channels}"`, `>${inScope(() => esc(t(l, 'nav.channels')))}<`])
         expect(s, `${l} ${gone}`).not.toContain(gone);
@@ -211,8 +220,8 @@ describe('phase 7 · the channels have ONE home: My business', () => {
 
 describe('phase 7 · every screen a level down starts with its way back', () => {
   const backs: Record<BusinessScreen, string> = {
-    channels: '/app/settings/business', allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/settings/business', promises: '/app/settings/business', how: '/app/settings/business',
-  };
+    allowlist: BUSINESS_SCREEN_PATH.channels, ready: '/app/settings/business', promises: '/app/settings/business', how: '/app/settings/business',
+  } as Record<BusinessScreen, string>;
   for (const l of LOCALES) {
     it(`${l} · My business's screens, and the pages its rows open`, () => {
       for (const [s, href] of Object.entries(backs) as [BusinessScreen, string][]) {
@@ -233,7 +242,10 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
         from(renderSamples({ policy: null, waiting: [] }, l, null, new Date()), BUSINESS_SCREEN_PATH.how);
         from(renderClosures({ closures: [] }, l, null), BUSINESS_SCREEN_PATH.how);
         from(renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, l, null), BUSINESS_SCREEN_PATH.how);
-        from(renderLanguage(l), '/app/settings');
+        // Rule 104 — Channels is a page of the Settings menu, in the one template: its title first (the menu is the
+        // way back), one heading. The language is a section of You › Account, not a screen of its own.
+        expect(screen('channels', l).trimStart().startsWith('<h1 class="page">'), `${l} channels`).toBe(true);
+        expect(screen('channels', l).match(/<h1 /g), `${l} channels: one heading`).toHaveLength(1);
       });
     });
   }
@@ -247,7 +259,8 @@ describe('phase 7 · every screen a level down starts with its way back', () => 
     for (const s of CHANNEL_SCREENS) {
       const page = inScope(() => renderChannelScreen(s, { whatsapp: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
         displayId: null, lastActivityAt: null, problem: null, activated: false }, ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null }, 'en', null));
-      expect(page.startsWith(`<a class="back" href="${BUSINESS_SCREEN_PATH.channels}">`), s).toBe(true);
+      // Rule 104 — each channel's page starts with its own title, the menu's label; the sidebar is the way back.
+      expect(page.startsWith('<h1 class="page">'), s).toBe(true);
       expect(page, s).not.toContain(`<h1 class="page">${esc(t('en', 'factory.reach.title'))}</h1>`);
     }
   });
