@@ -11,7 +11,6 @@ import { t, tn, booksShown } from './say.js';
 import { back, esc } from './layout.js';
 import { fieldRow, rowsCard, cardActs } from './rows.js';
 import { flashBanner, type Flash } from './flash.js';
-import { renderAssistantsSection } from './assistants.js';
 import type { Assistant } from '../../core/owner/assistants.js';
 import * as show from './values.js';
 import type { RotationView } from '../../db/rotation.js';
@@ -360,8 +359,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
       ${booksShown() ? `<h3>${esc(t(locale, 'people.kind.accountant'))}</h3>
       <p class="muted">${esc(t(locale, 'team.role.accountantWhat'))}</p>` : ''}
     </section>
-    ${v.rotation ? renderRotationSection(v.rotation, locale, now) : ''}
-    ${v.assistants ? renderAssistantsSection(v.assistants, locale) : ''}`;
+    ${v.rotation ? renderRotationSection(v.rotation, locale, now) : ''}`;
 }
 
 /**

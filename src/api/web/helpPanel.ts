@@ -10,7 +10,8 @@ import { hasVideo } from './guide.js';
 import { makeThrottle } from './throttle.js';
 import { answerHelp, type HelpAnswer, type HelpTopic } from '../../advisor/help.js';
 import type { AdvisorSpent } from '../../advisor/answer.js';
-import { GUIDES, helpFor, guideTitle, guideDoor, guideLines, pageFrom, type GuideId } from './helpTopics.js';
+import { GUIDES, helpFor, notesFor, guideTitle, guideDoor, guideLines, pageFrom, type GuideId, type PageNote } from './helpTopics.js';
+import { wordsHtml } from './layout.js';
 import { HELP_MAIL_FIELDS, helpNoticeKey } from '../../core/owner/helpMail.js';
 
 /**
@@ -74,6 +75,11 @@ function guideHtml(locale: Locale, id: GuideId): string {
     ${deeper(g.door, t(locale, guideDoor(id)))}</li>`;
 }
 
+/** A settings page's longer explanation (helpTopics.ts `PAGE_NOTES`): drawn as a guide is, before the guides. */
+const noteHtml = (locale: Locale, n: PageNote): string =>
+  `<li class="help-guide help-note"><h2 dir="auto">${wordsHtml(locale, n.title)}</h2>
+    <ul>${n.lines.map((k) => `<li dir="auto">${wordsHtml(locale, k)}</li>`).join('')}</ul></li>`;
+
 function answerHtml(locale: Locale, a: HelpAnswer): string {
   switch (a.kind) {
     // The lines the model chose, in the guide's own words as the page shows them — never the model's text.
@@ -130,7 +136,7 @@ export function renderHelp(locale: Locale, v: HelpView): string {
     <h1 class="page" id="pc-name" dir="auto">${esc(t(locale, 'help.title'))}</h1>
     <p class="muted" dir="auto">${esc(t(locale, 'help.lede'))}</p>
     ${v.flash ? flashBanner(v.flash) : ''}
-    <ol class="help-guides">${helpFor(v.from ?? '/app').map((id) => guideHtml(locale, id)).join('')}</ol>
+    <ol class="help-guides">${notesFor(v.from ?? '/app').map((n) => noteHtml(locale, n)).join('')}${helpFor(v.from ?? '/app').map((id) => guideHtml(locale, id)).join('')}</ol>
     ${ask}${write}
   </article>`;
 }

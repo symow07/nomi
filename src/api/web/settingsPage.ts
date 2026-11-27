@@ -56,8 +56,9 @@ export const setNotice = (o: {
   readonly text?: string; readonly html?: string; readonly id?: string | undefined;
   readonly door?: { readonly href: string; readonly label: string } | undefined; readonly act?: string | undefined;
 }): string =>
-  `<p class="set-note"${o.id ? ` id="${esc(o.id)}"` : ''}><span>${o.html ?? esc(o.text ?? '')}</span>${o.door
-    ? `<a href="${esc(o.door.href)}">${esc(o.door.label)}</a>` : ''}${o.act ?? ''}</p>`;
+  // An act is a form, and a paragraph cannot hold one (the browser would end the paragraph before it): a block then.
+  `<${o.act ? 'div' : 'p'} class="set-note"${o.id ? ` id="${esc(o.id)}"` : ''}><span>${o.html ?? esc(o.text ?? '')}</span>${o.door
+    ? `<a href="${esc(o.door.href)}">${esc(o.door.label)}</a>` : ''}${o.act ?? ''}</${o.act ? 'div' : 'p'}>`;
 
 /**
  * 4 · The form the page's ONE Save sends. `data-save` is what the page's script watches for unsaved changes.

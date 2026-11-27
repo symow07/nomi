@@ -28,6 +28,7 @@ import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 import { switcher, deeper, back, esc, conversationUrl, ASSISTANT_HOME } from './layout.js';
 import { agentMark } from './agentMark.js';
 import { fieldRow, rowsCard, cardActs, keptValue, keptError, keptInvalid, type Kept } from './rows.js';
+import { setSection, rowAction, searchList, listRow } from './settingsPage.js';
 import { factList, editFold, editActs, editSection } from './editFold.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -871,39 +872,35 @@ const languageOf = (locale: Locale, code: string): string => {
 };
 const LIST_GAP: Readonly<Record<Locale, string>> = { en: ', ', zh: '、', ar: '، ', es: ', ', fr: ', ' };
 
-export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null, kept: Kept | null = null): string {
+/**
+ * The settings overhaul (rule 104) — WORDS TO AVOID, a section of Settings › Assistant › Promises and words (it was a
+ * page of its own). The rule is on the page in one line; a word is ADDED with the list's own Add form and REMOVED by
+ * its row, at once (the notice that follows offers Undo); the built-in list is read-only, folded. How a word is
+ * matched is in the page's help (helpTopics.ts).
+ */
+export function forbiddenSection(v: ForbiddenView, locale: Locale, kept: Kept | null = null): string {
   const name = assistantName(locale);
-  // Phase 9 (V1-506) — the way back to the page it is reached from: the assistant's.
-  return `${back(ASSISTANT_HOME, t(locale, 'nav.employee'))}
-    <h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
-    ${flashBanner(flash)}
-    <p class="lede">${esc(t(locale, 'forbidden.intro', { name }))}</p>
-    ${/* V1-504 — how a word is matched (as a word, not inside a longer one), said where words are added. */ ''}<details class="floor-fold how-fold"><summary>${esc(t(locale, 'forbidden.howMatched.title'))}</summary><p class="muted small measure-prose">${esc(t(locale, 'forbidden.howMatched'))}</p></details>
-    <form method="post" action="/app/settings/forbidden">
-      ${rowsCard(null, [
-        fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
-          control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" value="${keptValue(kept, 'term')}"${keptInvalid(kept, 'term', 'fb-term-err')} />` }),
-        fieldRow({ label: t(locale, 'forbidden.add.note'), forId: 'fb-note',
-          control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" value="${keptValue(kept, 'note')}" />` }),
-        cardActs(`<button class="btn send" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>`),
-      ])}
-    </form>
-    ${v.own.length === 0
-      ? `<div class="empty whole">${esc(t(locale, 'forbidden.empty'))}</div>`
-      : rowsCard(null, v.own.map((x) => fieldRow({ label: x.term,
-          control: `${x.note ? `<span class="fr-value muted"><bdi>${esc(x.note)}</bdi></span>` : ''}<form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
-              <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
-            </form>` })))}
-    ${/* Phase 3 — the floor is a fact, not the page: folded, the words inside for whoever opens it.
-        Phase 9 (settings-a-new-18) — what it is and what the number counts are on the fold, and why it is there is said outside it. */ ''}<div class="block floor">
-      <h2>${esc(t(locale, 'forbidden.floor.title'))}</h2>
-      <p class="muted">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
+  const add = `<form method="post" action="/app/settings/forbidden" class="set-add">
+      ${fieldRow({ label: t(locale, 'forbidden.add.label'), forId: 'fb-term', error: keptError(kept, 'term', 'fb-term-err'),
+        control: `<input id="fb-term" name="term" required maxlength="80" placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" value="${keptValue(kept, 'term')}"${keptInvalid(kept, 'term', 'fb-term-err')} />` })}
+      ${fieldRow({ label: t(locale, 'forbidden.add.note'), forId: 'fb-note',
+        control: `<input id="fb-note" name="note" maxlength="${MAX_FORBIDDEN_NOTE}" placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" value="${keptValue(kept, 'note')}" />` })}
+      ${cardActs(`<button class="btn" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>`)}
+    </form>`;
+  const own = v.own.length === 0
+    ? `<p class="set-none muted">${esc(t(locale, 'forbidden.empty'))}</p>`
+    : searchList(locale, `<table class="team-table as-words"><thead><tr><th scope="col">${esc(t(locale, 'forbidden.add.label'))}</th><th scope="col">${esc(t(locale, 'as.words.note'))}</th><th scope="col"></th></tr></thead><tbody>${v.own.map((x) =>
+        `<tr class="tm"${listRow(`${x.term} ${x.note ?? ''}`)}><th scope="row"><bdi>${esc(x.term)}</bdi></th><td>${x.note ? `<bdi>${esc(x.note)}</bdi>` : ''}</td><td class="as-act">${rowAction({
+          action: `/app/settings/forbidden/${x.id}/remove`, label: t(locale, 'forbidden.remove'), ariaLabel: `${t(locale, 'forbidden.remove')}: ${x.term}` })}</td></tr>`).join('')}</tbody></table>`);
+  // The floor is a fact, not a setting: what it is and that it cannot be switched off are said; the words are folded.
+  const floor = `<h3 class="sgroup-h">${esc(t(locale, 'forbidden.floor.title'))}</h3>
+      <p class="set-help">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
       <details class="floor-fold">
         <summary>${esc(tn(locale, 'forbidden.floor.count', v.floor.length))}</summary>
         <dl class="floor-langs">${FLOOR_BY_LANGUAGE.map((g) => `<div><dt>${esc(languageOf(locale, g.language))}</dt><dd>${
           g.words.filter((w) => v.floor.includes(w)).map((w) => `<bdi>${esc(w)}</bdi>`).join(esc(LIST_GAP[locale]))}</dd></div>`).join('')}</dl>
-      </details>
-    </div>`;
+      </details>`;
+  return setSection({ id: 'words', title: t(locale, 'settingsArea.words'), help: t(locale, 'forbidden.intro', { name }), rows: `${add}${own}${floor}` });
 }
 
 /* ── M43b · the rate she will honour ─────────────────────────────────────── */

@@ -37,7 +37,7 @@ export const GUIDES: Readonly<Record<GuideId, Guide>> = {
   inbox: { id: 'inbox', door: '/app/inbox', lines: 3, source: 'page' },
   products: { id: 'products', door: '/app/products/add', video: 'products', lines: 3, source: 'docs/kb/04-catalog-import.md' },
   away: { id: 'away', door: '/app', lines: 3, source: 'docs/kb/05-night-shift.md' },
-  alone: { id: 'alone', door: '/app/settings/assistant/alone', lines: 3, source: 'docs/kb/06-promotion-revoke.md' },
+  alone: { id: 'alone', door: '/app/settings/assistant', lines: 3, source: 'docs/kb/06-promotion-revoke.md' },
   name: { id: 'name', door: '/app/settings/assistant/name', video: 'name', lines: 2, source: 'page' },
   disclosure: { id: 'disclosure', door: '/app/settings/assistant/name', lines: 3, source: 'docs/kb/10-buyer-privacy.md' },
   data: { id: 'data', door: '/app/settings/business/data', lines: 3, source: 'docs/kb/09-data-export.md' },
@@ -124,6 +124,26 @@ export function helpFor(path: string): readonly GuideId[] {
   }
   return best[1];
 }
+
+/**
+ * The settings overhaul (rule 104) — WHAT A SETTINGS PAGE SAID AT LENGTH. A settings page keeps one line beside each
+ * control; an explanation longer than that stands here, in the page's own help, first, in the words the page had (the
+ * catalogue's own keys, so in every language they were written in). Nothing in a note is a safety line: those stay on
+ * the page (tests/parity/settings-safety-lines.test.ts).
+ */
+export type PageNote = { readonly title: MessageKey; readonly lines: readonly MessageKey[] };
+export const PAGE_NOTES: Readonly<Record<string, readonly PageNote[]>> = {
+  // Reply permissions: the page "How sending without you works", whole; and what a change to the follow-up rule reaches.
+  '/app/settings/assistant': [
+    { title: 'her.alone.title', lines: ['autonomy.intro', 'autonomy.needsName', 'autonomy.disclosure'] },
+    { title: 'followUp.title', lines: ['followUp.future'] },
+  ],
+  // Promises and words: how a word to avoid is matched.
+  '/app/settings/assistant/promises': [{ title: 'forbidden.howMatched.title', lines: ['forbidden.howMatched'] }],
+};
+/** The notes of a page, by its path (a query or fragment is ignored); none for most pages. */
+export const notesFor = (path: string): readonly PageNote[] =>
+  PAGE_NOTES[((path.split(/[?#]/)[0] ?? path).replace(/\/+$/, '')) || '/app'] ?? [];
 
 /** The longest page address the help panel takes. */
 export const FROM_MAX = 200;

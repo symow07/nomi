@@ -3,7 +3,7 @@ import {registerPaymentRoutes} from './paymentRoutes.js';
 import {renderInvoicePaymentDoor} from './stripePayments.js';
 import {invoiceLinkState} from '../../db/stripePayments.js';
 import type {ConnectConfig,ConnectClient} from '../../payments/stripeConnect.js';
-import { renderFollowUpRule, renderFollowUps } from './followUps.js';
+import { renderFollowUps } from './followUps.js';
 import { readFollowUpRule } from '../../core/conversation/followUps.js';
 import { followUpRule, followUpsOf, saveFollowUpRule, cancelFollowUp, type FollowUpRun } from '../../db/followUps.js';
 import { registerInstagramCommentRoutes } from './instagramCommentRoutes.js';
@@ -42,7 +42,7 @@ import { dayOf, isEvery } from '../../core/books/spending.js';
 import { renderBooksOverview, renderBooksReportsHome, booksDoors, booksDay, type ScopeAccount } from './booksOverview.js';
 import { renderBooksSetup } from './booksSetup.js';
 import { booksArea } from './booksArea.js';
-import { renderAssistantsSection, channelsFromForm } from './assistants.js';
+import { renderNameIdentity, channelsFromForm } from './assistants.js';
 import { settingsArea,settingsPageLinks,renderSettingsIndex } from './settingsArea.js';
 import { settingsGroup,settingsHref,SETTINGS_MOVES } from './settingsNavigation.js';
 import { compareDecimal, decimal, mulDecimal, roundDecimal, signOf, type Decimal } from '../../core/types/decimal.js';
@@ -228,7 +228,7 @@ import {
   updateStepFrom,
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName, booksMay } from '../../core/conversation/people.js';
-import { loadEmployee, renderEmployee, renderEmployeeScreen, EMPLOYEE_SCREENS, screenHref, screenTitle, aloneInForce, setupFoldOf, type HerContext, type TalkAbout } from './employee.js';
+import { loadEmployee, renderEmployee, renderEmployeeScreen, screenHref, aloneInForce, NAME_HOME, PERMISSIONS_SAVE, type PermissionsExtra, type HerContext, type TalkAbout } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer, customerFileTitle } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderMonthReport } from './monthReport.js';
@@ -243,7 +243,7 @@ import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, restoreEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
 import { markPromiseKept } from '../../db/promisedDates.js';
 import { settingsProfileValue } from './settings.js';
-import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
+import { saveIdentifiers, loadBusinessProfile, renderSetup, renderSettingsHome, renderLanguage, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, restoreForbidden, forbiddenSection, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, restoreClosure, renderClosures, closureDateField,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory, renderBusinessScreen, loadBusinessMenu, profileFinished, BUSINESS_SCREEN_PATH, type BusinessScreen } from './factory.js';
@@ -279,7 +279,8 @@ import { loadReadiness } from '../../db/readiness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
-import { isAutonomyLevel } from '../../core/conversation/autonomyLevel.js';
+import { isAutonomyLevel, levelOf, type AutonomyLevel } from '../../core/conversation/autonomyLevel.js';
+import { defaultAssistantName } from '../../core/owner/assistants.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
 import { asViewer } from '../../db/viewer.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
@@ -6154,8 +6155,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     ready: (l) => t(l, 'business.row.live'), promises: (l) => t(l, 'settingsArea.promises'),
     how: (l) => t(l, 'factory.sellhow.title'),
   };
+  /**
+   * The settings overhaul (rule 104) — Settings › Assistant › Promises and words: the certifications and the price
+   * promises (My business's own view) and, as a section, the words to avoid (`forbiddenSection`; `kept` when adding
+   * a word was refused).
+   */
+  const WORDS = `${BUSINESS_SCREEN_PATH.promises}#words`;
+  const promisesBody = async (s: OwnerSession, locale: Locale, flash: Flash | null, kept: Kept | null = null): Promise<string> => {
+    const [view, words] = await Promise.all([
+      loadFactory(deps.db, s.businessId, whatsappConfigured, await businessOffer(s.businessId), { rehearse: false }),
+      loadForbidden(deps.db, s.businessId),
+    ]);
+    return renderBusinessScreen('promises', view, locale, flash, personOf(s), { wordsHtml: forbiddenSection(words, locale, kept) });
+  };
+  app.get(BUSINESS_SCREEN_PATH.promises, authed('factory', async (s, req, locale, reply) =>
+    ({ title: BUSINESS_SCREEN_TITLE.promises(locale), bodyHtml: await promisesBody(s, locale, takeFlash(req, reply)) })));
   for (const screen of Object.keys(BUSINESS_SCREEN_PATH) as BusinessScreen[]) {
-    if(screen==='how') continue;
+    if(screen==='how'||screen==='promises') continue;
     app.get(settingsHref(BUSINESS_SCREEN_PATH[screen]), authed('factory', async (s, req, locale, reply) => {
       const flash = takeFlash(req, reply);
       const [view, menu] = await Promise.all([
@@ -6262,7 +6278,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/business/stop-assistant', async (req, reply) => {
     // Phase 9 (rule 13) — pressed on the assistant's own page, the notice lands there.
     const from=(req.body as {from?:unknown}|undefined)?.from;
-    const to = from === 'assistant' ? '/app/assistant' : from === 'employee' ? `${ASSISTANT_HOME}#on-her-own` : READY;
+    const to = from === 'assistant' ? '/app/assistant' : from === 'employee' ? `${ASSISTANT_HOME}#stop` : READY;
     const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
@@ -6944,34 +6960,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // THE WARMTH RUN, phase 7 — the landing: the name, how much the assistant
   // does alone (the control, whole), and the menu. THE ADVISOR RUN (2026-10-06) —
   // one level into Settings (`ASSISTANT_HOME`), its first row; the rail's slot is the advisor's.
+  /**
+   * The settings overhaul (rule 104) — Reply permissions, drawn: the profile, the follow-up rule as it stands (or as
+   * a refused Save typed it), for this viewer.
+   */
+  const permissionsBody = async (s: OwnerSession, locale: Locale, flash: Flash | null, extra: PermissionsExtra = {}): Promise<string> => {
+    const e = await loadEmployee(deps.db, s.businessId);
+    const rule = extra.followUps ?? await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId));
+    return renderEmployee(e, locale, flash, personOf(s), { ...extra, followUps: rule });
+  };
   app.get(ASSISTANT_HOME, async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const flash = takeFlash(req, reply);
-    const [e, ctx] = await Promise.all([loadEmployee(deps.db, s.businessId), herContext(s.businessId)]);
-    const open = setupFoldOf((req.query as { open?: unknown }).open);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'nav.employee'), active: 'settings',
-      bodyHtml: renderEmployee(e, locale, flash, ctx, personOf(s), true, open)
-        + renderFollowUpRule(locale, await withTenantTx(deps.db, s.businessId as BusinessId, tx => followUpRule(tx, s.businessId)), personOf(s).isOwner, false, open === 'follow-ups'),
+      title: t(locale, 'settingsArea.permissions'), active: 'settings', bodyHtml: await permissionsBody(s, locale, takeFlash(req, reply)),
     }));
   });
+  /** What a follow-up form typed, as a rule the page can draw again when the Save is refused. */
+  const typedFollowUp = (input: { enabled?: unknown; delayDays?: unknown; wording?: unknown }) => ({
+    enabled: input.enabled === '1', delayDays: /^[1-7]$/.test(String(input.delayDays)) ? Number(input.delayDays) : 2,
+    wording: typeof input.wording === 'string' ? input.wording : '',
+  });
+  // The follow-up rule alone: the address the older form posted to, which still answers (rule 104: POST paths stay).
   app.post('/app/settings/assistant/follow-ups', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME); if (!s) return reply;
     const input = (req.body ?? {}) as { enabled?: unknown; delayDays?: unknown; wording?: unknown };
     const parsed = readFollowUpRule(input);
-    if (!parsed.ok) {
-      const locale = localeOf(req);
-      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
-        title: t(locale, 'followUp.title'), active: 'settings',
-        bodyHtml: back(ASSISTANT_HOME, t(locale, 'nav.employee'))
-          + `<h1><bdi lang="en" dir="ltr">${esc(t(locale, 'followUp.title'))}</bdi></h1>` + renderFollowUpRule(locale, {
-          enabled: input.enabled === '1', delayDays: /^[1-7]$/.test(String(input.delayDays)) ? Number(input.delayDays) : 2,
-          wording: typeof input.wording === 'string' ? input.wording : '',
-        }, true, true),
-      }));
-    }
+    if (!parsed.ok) return sentBack(req, reply, 'settings',
+      await permissionsBody(s, localeOf(req), null, { followUps: typedFollowUp(input), followUpError: parsed.reason }));
     await withTenantTx(deps.db, s.businessId as BusinessId, tx => saveFollowUpRule(tx, s.businessId, parsed.rule, new Date()));
     return flashTo(reply, `${ASSISTANT_HOME}#follow-ups`, 'followUp.flash.saved');
   });
@@ -6990,26 +7007,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     return flashTo(reply, here, skipped ? 'followUp.flash.skipped' : 'followUp.flash.changed');
   });
-  // …and each row's screen: one former section, under its way back. Each is
-  // its own route, so every walk of the GET routes opens every one of them.
-  for (const screen of EMPLOYEE_SCREENS) {
-    if (screen === 'month' || dailyAssistantScreen(screen) || ['next','replies','one-kind'].includes(screen)) continue; // Daily work has its own area.
-    app.get(screenHref(screen), async (req, reply) => {
-      const s = sessionOf(req);
-      if (!s) return reply.redirect('/login');
-      const locale = localeOf(req);
-      const flash = takeFlash(req, reply);
-      const [e, ctx, talk] = await Promise.all([
-        loadEmployee(deps.db, s.businessId),
-        screen === 'learning' ? herContext(s.businessId) : Promise.resolve(undefined),
-        screen === 'talk' ? talkAbout(s.businessId, locale) : Promise.resolve(undefined),
-      ]);
-      return reply.type('text/html; charset=utf-8').send(page(req, {
-        title: screenTitle(locale, screen), active: 'settings',
-        bodyHtml: renderEmployeeScreen(screen, e, locale, flash, ctx, personOf(s), talk ? { talk } : {}) + (screen === 'name' && personOf(s).isOwner ? renderAssistantsSection(await loadAssistants(deps.db,s.businessId),locale) : ''),
-      }));
-    });
-  }
+  // The settings overhaul (rule 104) — Settings › Assistant › Name and identity: the name customers read (confirmed
+  // by its own act), one assistant's name, job and voice with the page's one Save (`?edit=` names another), who
+  // answers, and adding one. "How sending without you works" is cut as a page (SETTINGS_MOVES sends it to Reply
+  // permissions); the other former screens are sections of Reply permissions or pages of the Assistant area.
+  app.get(NAME_HOME, async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const flash = takeFlash(req, reply);
+    const viewer = personOf(s);
+    const e = await loadEmployee(deps.db, s.businessId);
+    const edit = String((req.query as { edit?: unknown }).edit ?? '');
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'settingsArea.identity'), active: 'settings',
+      bodyHtml: renderNameIdentity({ named: e.assistantNamed, pending: (e.pendingName ?? '').trim() || defaultAssistantName(locale) },
+        viewer.isOwner ? await loadAssistants(deps.db, s.businessId) : [], locale, flash, viewer, UUID.test(edit) ? edit : null),
+    }));
+  });
   /**
    * G7 — new connections stopped by the operator (`connections_off`); KS6 —
    * or this workspace's first connection waits for the operator's approval
@@ -7029,6 +7044,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!b.ok) return 0;
     return withTenantTx(deps.db, b.value, (tx) => earnedRung(tx)).catch(() => 0 as const);
   };
+  const KINDS = `${ASSISTANT_HOME}#reply-types`;
   const capAction = (verb: string, run: (biz: string, cap: string, actor: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
     app.post(`${ASSISTANT_HOME}/capability/:capability/${verb}`, async (req, reply) => {
       // OWNER ONLY: deciding what Nomi may do unsupervised is the trust ladder
@@ -7042,48 +7058,89 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // The single-capability grant is the same decision as a level, so it is
       // held to the same gate. Taking one back is never refused.
       if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
-        return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notReleased');
+        return flashTo(reply, KINDS, 'autonomy.flash.notReleased');
       }
       // G4 / R2 — and a workspace that signed itself up grants nothing past its rung.
       // (confirm_order is refused by the grant itself.)
       const need = rungOf(cap as Capability);
       if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {
-        return flashTo(reply, screenHref('one-kind'), 'autonomy.flash.notEarned');
+        return flashTo(reply, KINDS, 'autonomy.flash.notEarned');
       }
       const r = await run(s.businessId, cap, personOf(s).id);
-      // Phase 7 — back to the screen the buttons are on, its notice at the top.
-      return flashTo(reply, screenHref('one-kind'), `employee.flash.${r.code}` as MessageKey);
+      // Back to the table the buttons are in (Reply permissions › Each kind of reply), its notice at the top.
+      return flashTo(reply, KINDS, `employee.flash.${r.code}` as MessageKey);
     });
   // T1 — how much she does on her own is the owner's choice, from day one. The
   // same gate as a single grant: it is the same decision, made for several at once.
-  app.post(`${ASSISTANT_HOME}/autonomy`, async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME);
-    if (!s) return reply;
-    const locale = localeOf(req);
-    const level = String((req.body as { level?: string } | undefined)?.level ?? '');
-    if (!isAutonomyLevel(level)) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'people.flash.failed');
-    // The native-review gate, enforced where the choice is SAVED rather than
-    // only where it is shown. A page that hides a control is a suggestion; a
-    // route that refuses it is the rule. `waits` is always allowed: it is the
-    // setting that sends nothing without her, so nothing unreviewed can reach
-    // a buyer through it — and it is how she takes back what she gave.
-    if (level !== 'waits' && !(deps.autonomyReleased ?? autonomyReleased)()) {
-      return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'autonomy.flash.notReleased');
-    }
-    // G4 (0102) — in a workspace that signed itself up, sending alone is earned,
-    // not chosen: refused where it is SAVED. `waits` is never refused.
-    if (rungOfLevel(level) > await rungFor(s.businessId)) {
-      return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'autonomy.flash.notEarned');
-    }
+  /**
+   * Why a level may not be chosen, or null. The native-review gate, enforced where the choice is SAVED rather than
+   * only where it is shown: a page that hides a control is a suggestion; a route that refuses it is the rule.
+   * `waits` is always allowed: it is the setting that sends nothing without her, so nothing unreviewed can reach a
+   * buyer through it — and it is how she takes back what she gave. G4 (0102) — and in a workspace that signed itself
+   * up, sending alone is earned, not chosen; `waits` is never refused.
+   */
+  const levelRefusal = async (businessId: string, level: AutonomyLevel): Promise<MessageKey | null> =>
+    level !== 'waits' && !(deps.autonomyReleased ?? autonomyReleased)() ? 'autonomy.flash.notReleased'
+      : rungOfLevel(level) > await rungFor(businessId) ? 'autonomy.flash.notEarned' : null;
+  /** The level, chosen (`chooseAutonomyLevel`, unchanged): the notice to show, or null when it did not save. */
+  const chooseLevel = async (s: OwnerSession, level: AutonomyLevel): Promise<MessageKey | null> => {
     const r = await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id)
       .catch(() => ({ ok: false, changed: 0 }));
-    if (!r.ok) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'people.flash.failed');
+    if (!r.ok) return null;
     // V1-417 — the notice says what happens now, by the page's own answer (`aloneNow`).
     const held = level !== 'waits' && await loadEmployee(deps.db, s.businessId)
       .then((e) => aloneNow({ capabilities: e.capabilities, released: (deps.autonomyReleased ?? autonomyReleased)(), named: e.assistantNamed,
         ...(e.earned === undefined ? {} : { earned: e.earned }), stopped: e.stopped === true, silenced: e.silenced === true }).hold !== null)
       .catch(() => false);
-    return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, held ? 'autonomy.flash.savedHeld' : 'autonomy.flash.saved');
+    return held ? 'autonomy.flash.savedHeld' : 'autonomy.flash.saved';
+  };
+  // The level alone: the address the older form posted to; "Set every reply to wait for me" and "Choose this level
+  // again" on Reply permissions still post here.
+  app.post(`${ASSISTANT_HOME}/autonomy`, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME);
+    if (!s) return reply;
+    const level = String((req.body as { level?: string } | undefined)?.level ?? '');
+    if (!isAutonomyLevel(level)) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'people.flash.failed');
+    const refused = await levelRefusal(s.businessId, level);
+    if (refused) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, refused);
+    return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, await chooseLevel(s, level) ?? 'people.flash.failed');
+  });
+  /**
+   * The settings overhaul (rule 104) — REPLY PERMISSIONS' ONE SAVE: the level and the follow-up rule, the page's
+   * fields. Everything is checked first, by the checks the two older routes make (`levelRefusal`,
+   * `readFollowUpRule`); a refusal draws the page again with everything typed kept and the reason under its field;
+   * then the two saves that were always called are called (`chooseAutonomyLevel`, `saveFollowUpRule`).
+   *
+   * The level is chosen only when it was CHOSEN: the form carries the level the page was drawn with (`level_was`),
+   * and a Save that leaves that level ticked while it is still the one set changes nothing about it. Choosing a
+   * level, even the same one, is the owner deciding again (it ends a language's withdrawal and restamps the choice,
+   * `chooseAutonomyLevel`), so a Save that only edits the follow-up words must not do it by the way; the page offers
+   * "Choose this level again" where that is wanted. No level sent (none of the three applies and none was ticked, or
+   * the workspace is offered none) leaves every kind as it is.
+   */
+  app.post(PERMISSIONS_SAVE, async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', ASSISTANT_HOME);
+    if (!s) return reply;
+    const input = (req.body ?? {}) as { level?: unknown; level_was?: unknown; enabled?: unknown; delayDays?: unknown; wording?: unknown };
+    const sent = typeof input.level === 'string' ? input.level : '';
+    if (sent !== '' && !isAutonomyLevel(sent)) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'people.flash.failed');
+    const level = sent !== '' && isAutonomyLevel(sent) ? sent : null;
+    const set = level === null ? null : await loadEmployee(deps.db, s.businessId)
+      .then((e) => levelOf(Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode]))));
+    const chosen = level !== null && !(level === input.level_was && level === set);
+    const refused = chosen ? await levelRefusal(s.businessId, level) : null;
+    const parsed = readFollowUpRule(input);
+    if (refused || !parsed.ok) return sentBack(req, reply, 'settings', await permissionsBody(s, localeOf(req), null, {
+      followUps: parsed.ok ? parsed.rule : typedFollowUp(input), followUpError: parsed.ok ? null : parsed.reason, level, levelError: refused,
+    }));
+    let said: MessageKey = 'followUp.flash.saved';
+    if (chosen) {
+      const saved = await chooseLevel(s, level);
+      if (!saved) return flashTo(reply, `${ASSISTANT_HOME}#on-her-own`, 'people.flash.failed');
+      said = saved;
+    }
+    await withTenantTx(deps.db, s.businessId as BusinessId, tx => saveFollowUpRule(tx, s.businessId, parsed.rule, new Date()));
+    return flashTo(reply, ASSISTANT_HOME, said);
   });
   capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));
   capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
@@ -7691,7 +7748,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // attest route exists precisely because those items have no answer to carry.
   app.post('/app/onboarding/assistant-name', async (req, reply) => {
     // Phase 9 (V1-420) — confirmed on the assistant's Name screen, it comes back there.
-    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? screenHref('name') : '/app/onboarding';
+    const to = (req.body as { from?: unknown } | undefined)?.from === 'employee' ? NAME_HOME : '/app/onboarding';
     const s = await ownerOnly(req, reply, 'messaging_activation', to);
     if (!s) return reply;
     const raw = String((req.body as { name?: string } | undefined)?.name ?? '');
@@ -7883,10 +7940,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── M37.5 · the words she may never say ───────────────────────────────────
   // Reached from settings. Without this surface the guard would be M35 again:
   // something buyers are subject to that no owner can configure.
-  app.get('/app/settings/assistant/words', authed('settings', async (sess, req, locale, reply) =>
-    renderForbidden(await loadForbidden(deps.db, sess.businessId), locale,
-      takeFlash(req, reply))));
-
+  // The settings overhaul (rule 104) — a section of Settings › Assistant › Promises and words (`WORDS`); the page's
+  // older address is sent there (SETTINGS_MOVES).
   app.post('/app/settings/forbidden', async (req, reply) => {
     const sess = sessionOf(req);
     if (!sess) return reply.redirect('/login');
@@ -7894,8 +7949,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const body = (req.body ?? {}) as { term?: string; note?: string };
     const r = await addForbidden(deps.db, sess.businessId, String(body.term ?? ''), String(body.note ?? ''));
     const kept = keptFrom(locale, `forbidden.flash.${r.code}`, body);
-    if (kept) return sentBack(req, reply, 'settings', renderForbidden(await loadForbidden(deps.db, sess.businessId), locale, null, kept));
-    return flashTo(reply, '/app/settings/forbidden', `forbidden.flash.${r.code}` as MessageKey);
+    if (kept) return sentBack(req, reply, 'settings', await promisesBody(sess, locale, null, kept));
+    return flashTo(reply, WORDS, `forbidden.flash.${r.code}` as MessageKey);
   });
 
   // M43b — the rate SHE will honour. Never a live rate she did not approve.
@@ -9176,8 +9231,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     const r = await removeForbidden(deps.db, sess.businessId, id);
     return r.code === 'removed'
-      ? flashTo(reply, '/app/settings/forbidden', 'forbidden.flash.removed', undefined, `/app/settings/forbidden/${id}/restore`)
-      : flashTo(reply, '/app/settings/forbidden', `forbidden.flash.${r.code}` as MessageKey);
+      ? flashTo(reply, WORDS, 'forbidden.flash.removed', undefined, `/app/settings/forbidden/${id}/restore`)
+      : flashTo(reply, WORDS, `forbidden.flash.${r.code}` as MessageKey);
   });
 
   // Phase 5 — Undo, from the notice that followed removing a word.
@@ -9186,7 +9241,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!sess) return reply.redirect('/login');
     const id = (req.params as { id: string }).id;
     const r = UUID.test(id) ? await restoreForbidden(deps.db, sess.businessId, id) : { code: 'failed' as const };
-    return flashTo(reply, '/app/settings/forbidden', r.code === 'restored' ? 'forbidden.flash.restored' : 'forbidden.flash.failed');
+    return flashTo(reply, WORDS, r.code === 'restored' ? 'forbidden.flash.restored' : 'forbidden.flash.failed');
   });
 
   app.post('/app/settings', async (req, reply) => {
@@ -9612,7 +9667,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; key?: string; allowed?: string };
     const r = await setCertification(deps.db, s.businessId, String(b.key ?? ''), b.allowed === '1');
-    return flashTo(reply, BUSINESS_SCREEN_PATH.promises, `knowledge.flash.${r.code}` as MessageKey);
+    return flashTo(reply, `${BUSINESS_SCREEN_PATH.promises}#certs`, `knowledge.flash.${r.code}` as MessageKey);
   });
 
   // ── Practice (M12.2; per workspace since P3, docs/PRACTICE.md) ─────────────
