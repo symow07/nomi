@@ -19,12 +19,15 @@ export type FieldRow = {
   readonly error?: string | undefined;
   /** Phase 9 (V1-523) — what this field is still needed for, said under its name while it is empty. */
   readonly need?: string | undefined;
+  /** The settings overhaul (rule 104) — the template's small "Needed" mark beside the name (settingsPage.ts `setRow`). */
+  readonly mark?: string | undefined;
 };
 
+const mark = (r: FieldRow): string => r.mark ? ` <span class="set-need">${esc(r.mark)}</span>` : '';
 export const fieldRow = (r: FieldRow): string =>
   `<div class="setrow${r.error ? ' bad' : ''}"><div class="fr-l">${r.forId
-    ? `<label class="fr-name" for="${esc(r.forId)}">${esc(r.label)}</label>`
-    : `<span class="fr-name">${esc(r.label)}</span>`}${r.need ? `<span class="fr-need">${esc(r.need)}</span>` : ''}${r.desc ? `<span class="fr-desc">${esc(r.desc)}</span>` : ''}</div>
+    ? `<label class="fr-name" for="${esc(r.forId)}">${esc(r.label)}${mark(r)}</label>`
+    : `<span class="fr-name">${esc(r.label)}${mark(r)}</span>`}${r.need ? `<span class="fr-need">${esc(r.need)}</span>` : ''}${r.desc ? `<span class="fr-desc">${esc(r.desc)}</span>` : ''}</div>
     <div class="fr-c">${r.control}${r.error ?? ''}</div></div>`;
 
 /** A labelled group: one card of rows. The title is optional for a page with one group. */

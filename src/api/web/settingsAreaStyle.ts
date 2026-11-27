@@ -38,6 +38,51 @@ export const SETTINGS_AREA_CSS=`
 .sa-value dt{color:var(--color-ink-secondary);font-size:var(--font-size-small);}
 .sa-value dd{margin:var(--space-8) 0 var(--space-24);overflow-wrap:anywhere;}
 .sa-logout{margin-top:var(--space-32);}
+.sa-menu{margin-block:var(--space-24) 0;}
+.sa-menu-h{margin:0;font-size:var(--font-size-small);font-weight:500;color:var(--color-ink-secondary);}
+.sa-menu .sa-index-list{margin-block:var(--space-8) 0;}
+.sa-menu .sa-index-list a{padding-block:var(--space-12);min-height:44px;font-weight:500;}
+.sa-menu .sa-index-list li:last-child{border-bottom:1px solid var(--color-border);}
+.sa-menu-name{display:flex;align-items:center;gap:var(--space-12);min-width:0;}
+.sa-menu-name svg{inline-size:20px;block-size:20px;flex:none;}
+/* The settings page template (rule 104): a title and one line, sections of rows, one Save at the end of the form,
+   the danger zone last. Every settings page is made of these parts. */
+.set-form{margin:0;}
+.set-sec{margin-block:var(--space-32) 0;padding-block-start:var(--space-16);border-block-start:1px solid var(--color-border);}
+.set-h{margin:0;font-size:var(--font-size-title);font-weight:600;color:var(--color-ink);}
+.set-help{margin:var(--space-4) 0 0;font-size:var(--font-size-small);color:var(--color-ink-secondary);max-width:var(--measure-prose);}
+.set-rows{margin-block-start:var(--space-8);}
+.set-rows>.setrow{padding-inline:0;}
+.set-rows>.setrow+.setrow{border-block-start:1px solid var(--color-border);}
+.settings-area .set-rows>.setrow{padding-block:var(--space-12);}
+.set-need{display:inline-block;margin-inline-start:var(--space-4);padding:0 var(--space-8);border:1px solid var(--color-ink);border-radius:var(--radius-chip);font-size:var(--font-size-caption);font-weight:600;color:var(--color-ink);}
+.set-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-8) var(--space-16);margin:var(--space-16) 0;padding:var(--space-8) var(--space-12);background:var(--color-surface);border:1px solid var(--color-border);border-inline-start:3px solid var(--color-ink);border-radius:var(--radius-control);font-size:var(--font-size-small);}
+.set-note>span{flex:1 1 16em;min-width:0;}
+.set-note>a{display:inline-flex;align-items:center;min-height:44px;font-weight:500;text-decoration:underline;text-underline-offset:3px;}
+.set-save{display:flex;flex-wrap:wrap;gap:var(--space-8);margin-block:var(--space-32) 0;padding-block-start:var(--space-16);border-block-start:1px solid var(--color-border);}
+.set-act{display:inline-flex;margin:0;}
+.set-switch{display:inline-flex;align-items:center;gap:var(--space-8);min-block-size:var(--control-button);padding:0;border:0;background:transparent;color:var(--color-ink);font:inherit;font-size:var(--font-size-small);cursor:pointer;}
+.set-switch:disabled{cursor:default;opacity:.5;}
+.set-track{position:relative;flex:none;inline-size:40px;block-size:24px;border-radius:var(--radius-chip);background:var(--color-control-line);}
+.set-track::after{content:"";position:absolute;inset-block-start:3px;inset-inline-start:3px;inline-size:18px;block-size:18px;border-radius:var(--radius-chip);background:var(--color-surface);}
+.set-switch[aria-checked="true"] .set-track{background:var(--color-ink);}
+.set-switch[aria-checked="true"] .set-track::after{inset-inline-start:19px;}
+.set-switch:focus-visible{outline:2px solid var(--color-ink);outline-offset:2px;border-radius:var(--radius-control);}
+.set-danger{margin-block-start:var(--space-12);padding-inline:var(--space-16);border:1.5px solid var(--color-warn);border-radius:var(--radius-card);}
+.set-danger-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-8) var(--space-16);padding-block:var(--space-12);}
+.set-danger-row+.set-danger-row{border-block-start:1px solid var(--color-border);}
+.set-danger-row>.fr-l{flex:1 1 16em;padding:0;}
+.set-list{display:flex;flex-direction:column;gap:var(--space-12);}
+.set-find{display:block;max-width:var(--measure-form);}
+.set-find[hidden]{display:none;}
+.set-find input{width:100%;}
+.set-list [data-row][hidden]{display:none;}
+.set-list>.btn{align-self:flex-start;}
+.set-list>.btn[hidden]{display:none;}
+.set-none{margin:0;}
+.set-pick{width:100%;}
+@media(min-width:721px){.settings-area .set-rows>.setrow{grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:var(--space-8) var(--space-24);}.settings-area .set-rows .fr-l{padding-top:var(--space-8);}}
+@media(max-width:720px){.set-switch{min-block-size:44px;min-inline-size:44px;}.set-save .btn{flex:1 1 auto;}.set-danger-row .set-act,.set-danger-row .set-act .btn{flex:1 1 auto;}}
 .ch-states{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-8) var(--space-16);margin-top:var(--space-12);}
 .ch-one{display:flex;flex-wrap:wrap;align-items:baseline;}
 .ch-state{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;}

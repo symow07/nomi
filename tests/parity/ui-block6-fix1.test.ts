@@ -108,11 +108,14 @@ describe('UI Block 6 fix 1 — the live-refresh pin says the limit it asserts', 
   // UI Block 7's F34 fix round raised the ceiling to 59,800 (Copy moved into the script), UI Block 9's F07 to 60,400 (the
   // filter bar's phone fold), F10 to 61,500 (a record part's Cancel and Escape); the rule is the same: the
   // comment above the ceiling names the limit it asserts and what was measured, Block 6's 58,800 / 58,766 kept in it.
-  it('the comment above the 61,500 ceiling names 61,500 and what it measured', () => {
+  // The settings overhaul (rule 104) raised it to 65,200: unsaved changes and the list with search live in the script.
+  it('the comment above the 65,200 ceiling names 65,200 and what it measured', () => {
     const test = src('./live-refresh.test.ts');
-    const at = test.indexOf('toBeLessThan(61_500)');
+    const at = test.indexOf('toBeLessThan(65_200)');
     expect(at).toBeGreaterThan(0);
     const comment = test.slice(test.lastIndexOf('// Block 2 fix round 2', at), at);
+    expect(comment).toContain('65,200');
+    expect(comment).toContain('64,636');
     expect(comment).toContain('61,500');
     expect(comment).toContain('61,378');
     expect(comment).toContain('60,400');
