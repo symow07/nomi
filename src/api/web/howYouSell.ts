@@ -155,7 +155,7 @@ export function renderHub(v: HubView, locale: Locale, flash: Flash | null, secti
   const position = (q: Question) => ({ i: v.order.indexOf(q) + 1, n: v.order.length });
   return `${pageHead(t(locale, 'settingsArea.selling'), t(locale, 'ws.selling.lede', { name }))}
     ${flashBanner(flash)}
-    ${setSection({ id: 'questions', title: t(locale, 'hs.questions.title'), rows: [
+    ${setSection({ id: 'questions', title: t(locale, 'hs.questions.title'), help: t(locale, 'ws.selling.ticks'), rows: [
       `<p class="hs-count">${esc(t(locale, 'hs.count', { done: show.count(locale, answered), total: show.count(locale, v.order.length) }))}</p>`,
       first ? `<form method="get" action="${HS_BASE}/${first}" class="hs-start"><button class="btn send" type="submit">${esc(t(locale,
         done.size === 0 ? 'hs.start' : 'hs.continue', { i: show.count(locale, position(first).i), n: show.count(locale, position(first).n) }))}</button></form>`

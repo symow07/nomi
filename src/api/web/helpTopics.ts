@@ -30,7 +30,7 @@ export type Guide = {
 
 export const GUIDES: Readonly<Record<GuideId, Guide>> = {
   setup: { id: 'setup', door: '/app/get-started', lines: 3, source: 'docs/kb/01-first-ten-minutes.md' },
-  profile: { id: 'profile', door: '/app/settings/business/profile', video: 'profile', lines: 2, source: 'page' },
+  profile: { id: 'profile', door: '/app/settings/business/profile', video: 'profile', lines: 3, source: 'page' },
   channels: { id: 'channels', door: '/app/settings/channels', video: 'channels', lines: 3, source: 'docs/kb/02-connect-whatsapp.md' },
   whatsapp: { id: 'whatsapp', door: '/app/settings/channels/whatsapp', lines: 3, source: 'docs/kb/02-connect-whatsapp.md' },
   approve: { id: 'approve', door: '/app/inbox', video: 'first_success', lines: 3, source: 'docs/kb/03-approve-edit-skip.md' },

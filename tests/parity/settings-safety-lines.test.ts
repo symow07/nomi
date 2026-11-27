@@ -28,10 +28,19 @@ import { messages, type MessageKey } from '../../src/core/owner/i18n/messages.js
  */
 type Guarded = { readonly lines: readonly MessageKey[]; readonly answers?: Answers };
 export const SAFETY_LINES: Readonly<Record<string, Guarded>> = {
-  // Billing is not open: the page says so, and that nothing is charged.
-  '/app/settings/billing': { lines: ['billing.notConfigured', 'state.billing.h'] },
+  // ── Settings › Workspace (the seven pages) ──
+  // The postal address: what it is for, and that no first e-mail or follow-up leaves while it is empty.
+  '/app/settings/business/profile': { lines: ['ws.profile.postal'] },
+  // No customer is promised a date through a closed day, and none is invented.
+  '/app/settings/business/hours': { lines: ['ws.hours.closedNote'] },
   // A new person's code is shown once, and nothing here sends it to anyone.
   '/app/settings/team': { lines: ['people.add.hint'] },
+  // Billing is not open: the page says so, and that nothing is charged.
+  '/app/settings/billing': { lines: ['billing.notConfigured', 'state.billing.h'] },
+  // A customer's deletion is at once and for good, and Nomi does not write to them; closing erases everything, for
+  // everyone, at once (the whole consequence is on the page, not behind a fold).
+  '/app/settings/business/data': { lines: ['data.buyers.lead', 'data.close.short', 'data.deletion.lead', 'data.deletion.now'] },
+  // ── end of Settings › Workspace ──
   // A channel this installation cannot connect says so (the owner's condition 3: as a row on Channels once the
   // Connections pages are converted; the line moves there with it).
   '/app/settings/channels/tiktok': { lines: ['connect.state.notHere'] },
@@ -40,7 +49,11 @@ export const SAFETY_LINES: Readonly<Record<string, Guarded>> = {
 };
 
 /** The pages that already follow the one template (rule 104). Add a page's address when it is converted. */
-export const CONVERTED: readonly string[] = [];
+export const CONVERTED: readonly string[] = [
+  // Settings › Workspace
+  '/app/settings/business/profile', '/app/settings/business/selling', '/app/settings/business/hours',
+  '/app/settings/business/currency', '/app/settings/team', '/app/settings/billing', '/app/settings/business/data',
+];
 
 /** Is the line on the page? Its words, escaped as a page writes them, in order around any value they carry. */
 const hasLine = (main: string, locale: Locale, key: MessageKey): boolean => {

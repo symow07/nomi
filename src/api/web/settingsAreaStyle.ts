@@ -133,6 +133,7 @@ export const SETTINGS_AREA_CSS=`
 .team-avail .turn .person{flex:1 1 12em;align-self:center;}
 .turn-away{display:flex;flex-direction:column;gap:var(--space-4);}
 .turn-switch{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-12);margin-block:var(--space-12);}
+.dr-close{flex:1 1 100%;}.dr-close .set-act{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--space-8) var(--space-16);}.dr-close .fld{flex:1 1 14em;margin:0;}
 .dr-index ul{display:flex;flex-wrap:wrap;gap:0 var(--space-24);list-style:none;margin:0 0 var(--space-8);padding:0;}
 .dr-index a{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;text-underline-offset:3px;}
 .dr-index-h{margin:0;font-size:var(--font-size-small);color:var(--color-ink-secondary);}

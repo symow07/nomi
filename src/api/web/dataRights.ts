@@ -391,7 +391,7 @@ export function renderDataRights(
   const closeRow = `<div class="set-danger-row" id="close"><div class="fr-l"><span class="fr-name">${esc(t(locale, 'data.deletion.title'))}</span>
       <span class="fr-desc">${esc(t(locale, 'data.close.short'))}</span><span class="fr-desc">${esc(consequence)}</span>
       ${viewer.isOwner && v.closable === false ? `<span class="fr-desc">${esc(t(locale, 'data.deletion.protected'))}</span>` : ''}</div>
-      ${pending}${closeForm}</div>`;
+      <div class="dr-close">${pending}${closeForm}</div></div>`;
 
   const workspace = v.requests.filter((r) => r.scope === 'workspace');
   const history = workspace.length === 0 ? '' : `<section class="block">

@@ -103,7 +103,7 @@ export function historyWorkspaceRows(locale: Locale, workspaceOn: boolean): stri
 export function historyDangerRows(locale: Locale, team: readonly { readonly id: string; readonly name: string }[]): DangerRow[] {
   return team.map((p) => ({
     title: t(locale, 'advisor.memory.ownerDelete', { name: p.name }), what: t(locale, 'ws.data.historyDelete'),
-    action: `${HISTORY_PAGE}/team/${p.id}/delete`, verb: t(locale, 'conv.deletion.erase'),
+    action: `${HISTORY_PAGE}/team/${p.id}/delete`, verb: t(locale, 'ws.data.delete'),
     confirm: t(locale, 'advisor.memory.ownerDeleteConfirm', { name: p.name }), hidden: { go: '1' }, id: `history-${p.id}`,
   }));
 }

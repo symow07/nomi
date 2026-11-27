@@ -58,8 +58,9 @@ export const HELP_EN = {
   'help.g.setup.door': 'Open Getting started',
 
   'help.g.profile.title': 'Your business profile',
-  'help.g.profile.1': 'The profile is what the assistant knows about your business: the name, what you sell, where you are, your time zone and your currency.',
-  'help.g.profile.2': 'Times on every page are in your business’s time zone. The currency can change only until the first price is saved.',
+  'help.g.profile.1': 'The profile is what the assistant knows about your business: the name, what you sell, where you are and how to reach you. Tick the languages your customers write in: setting up then asks for a product name in each one with its own script (Chinese, Arabic, Russian).',
+  'help.g.profile.2': 'Working hours and the time zone are on Hours and closures: times on every page are in that zone. The currency is on Currency, and can change only until the first price is saved.',
+  'help.g.profile.3': 'Your business is the sender of every first e-mail and follow-up, so a postal address and a way to unsubscribe in each one is your business’s duty. Nomi sends them on your behalf, from your own mailbox, and adds the address and an unsubscribe link; none is sent while the address is empty.',
   'help.g.profile.door': 'Open your profile',
 
   'help.g.channels.title': 'Where customers reach you',

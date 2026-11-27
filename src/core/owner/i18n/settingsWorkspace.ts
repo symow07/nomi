@@ -10,6 +10,7 @@ export const SETTINGS_WORKSPACE_EN = {
   'ws.profile.hoursAt': 'Working hours and the time zone are set on {page}.',
   'ws.profile.currencyAt': 'The currency you sell in is set on {page}.',
   'ws.selling.lede': 'Plain questions about how you sell. {name} answers customers from your answers.',
+  'ws.selling.ticks': 'After each question you see every line it would save, and only the lines you tick are saved.',
   'ws.hours.closedNote': 'No customer is promised a delivery date that runs through a closed day. {name} says it cannot be promised, and never invents a later one.',
   'ws.hours.removeAsk': 'Remove {label}? Delivery dates can be promised through those days again.',
   'ws.flash.rateAgain': 'Currency saved. The rate was not set: it was typed for the old currency. Set it again.',
@@ -27,6 +28,7 @@ export const SETTINGS_WORKSPACE_EN = {
   'ws.billing.lede': 'Your plan, and what is charged.',
   'ws.data.lede': 'Take a copy of your data, answer deletion requests, or close the workspace.',
   'ws.data.historyDelete': 'Deleted from Nomi whole and unread. It cannot be undone.',
+  'ws.data.delete': 'Delete',
 } as const;
 
 type Key = keyof typeof SETTINGS_WORKSPACE_EN;
@@ -41,6 +43,7 @@ export const SETTINGS_WORKSPACE_ZH: Record<Key, string> = {
   'ws.profile.hoursAt': '营业时间和时区在“{page}”里设置。',
   'ws.profile.currencyAt': '销售用的货币在“{page}”里设置。',
   'ws.selling.lede': '关于你怎么卖的几个简单问题。{name}按你的回答来回复客户。',
+  'ws.selling.ticks': '每答一题，你会看到要保存的每一行，只保存你勾选的。',
   'ws.hours.closedNote': '交付时间要是跨过休息日，就不会给客户承诺日期。{name}会说这个日期不能保证，也不会自己往后编一个。',
   'ws.hours.removeAsk': '要移除“{label}”吗？这几天又可以承诺交付日期了。',
   'ws.flash.rateAgain': '货币已保存。汇率没有设置：它是按原来的货币填的，请重新设置。',
@@ -58,6 +61,7 @@ export const SETTINGS_WORKSPACE_ZH: Record<Key, string> = {
   'ws.billing.lede': '你的套餐，以及收取的费用。',
   'ws.data.lede': '导出一份你的数据、处理删除请求，或关闭工作区。',
   'ws.data.historyDelete': '整体从 Nomi 删除，不会被读取，无法恢复。',
+  'ws.data.delete': '删除',
 };
 
 export const SETTINGS_WORKSPACE_AR: Record<Key, string> = {
@@ -70,6 +74,7 @@ export const SETTINGS_WORKSPACE_AR: Record<Key, string> = {
   'ws.profile.hoursAt': 'ساعات العمل والمنطقة الزمنية تُضبط في «{page}».',
   'ws.profile.currencyAt': 'عملة البيع تُضبط في «{page}».',
   'ws.selling.lede': 'أسئلة بسيطة عن طريقة البيع. وعلى الإجابات تُبنى ردود {name} على العملاء.',
+  'ws.selling.ticks': 'بعد كل إجابة تُعرض كل الأسطر التي ستُحفظ، ولا يُحفظ إلا ما يُؤشَّر عليه.',
   'ws.hours.closedNote': 'لا يُوعَد أي عميل بموعد تسليم يمرّ بيوم إغلاق. يوضّح {name} أن الموعد لا يمكن ضمانه، ولا يُختلق موعد لاحق أبدًا.',
   'ws.hours.removeAsk': 'إزالة «{label}»؟ سيعود الوعد بمواعيد التسليم خلال تلك الأيام ممكنًا.',
   'ws.flash.rateAgain': 'تم حفظ العملة. لم يُضبط سعر الصرف لأنه كُتب للعملة السابقة؛ يُرجى ضبطه من جديد.',
@@ -87,6 +92,7 @@ export const SETTINGS_WORKSPACE_AR: Record<Key, string> = {
   'ws.billing.lede': 'الخطة، وما يُحصَّل من رسوم.',
   'ws.data.lede': 'أخذ نسخة من بياناتك، أو معالجة طلبات الحذف، أو إغلاق مساحة العمل.',
   'ws.data.historyDelete': 'يُحذف من Nomi كاملًا دون قراءته، ولا يمكن التراجع.',
+  'ws.data.delete': 'حذف',
 };
 
 export const SETTINGS_WORKSPACE_ES: Record<Key, string> = {
@@ -99,6 +105,7 @@ export const SETTINGS_WORKSPACE_ES: Record<Key, string> = {
   'ws.profile.hoursAt': 'El horario y la zona horaria se configuran en {page}.',
   'ws.profile.currencyAt': 'La moneda de venta se configura en {page}.',
   'ws.selling.lede': 'Preguntas sencillas sobre cómo vendes. {name} responde a tus clientes a partir de tus respuestas.',
+  'ws.selling.ticks': 'Después de cada pregunta ves todas las líneas que se guardarían, y solo se guardan las que marques.',
   'ws.hours.closedNote': 'A nadie se le promete una fecha de entrega que pase por un día de cierre. {name} dice que no se puede prometer y nunca inventa una posterior.',
   'ws.hours.removeAsk': '¿Quitar {label}? Se podrán volver a prometer fechas de entrega en esos días.',
   'ws.flash.rateAgain': 'Moneda guardada. El tipo de cambio no se fijó: se escribió para la moneda anterior. Fíjalo de nuevo.',
@@ -116,6 +123,7 @@ export const SETTINGS_WORKSPACE_ES: Record<Key, string> = {
   'ws.billing.lede': 'Tu plan y lo que se cobra.',
   'ws.data.lede': 'Descarga una copia de tus datos, atiende solicitudes de borrado o cierra el espacio.',
   'ws.data.historyDelete': 'Se borra de Nomi entero y sin leer. No se puede deshacer.',
+  'ws.data.delete': 'Borrar',
 };
 
 export const SETTINGS_WORKSPACE_FR: Record<Key, string> = {
@@ -128,6 +136,7 @@ export const SETTINGS_WORKSPACE_FR: Record<Key, string> = {
   'ws.profile.hoursAt': 'Les horaires et le fuseau horaire se règlent dans {page}.',
   'ws.profile.currencyAt': 'La devise de vente se règle dans {page}.',
   'ws.selling.lede': 'Des questions simples sur votre façon de vendre. {name} répond aux clients à partir de vos réponses.',
+  'ws.selling.ticks': 'Après chaque question, vous voyez toutes les lignes qui seraient enregistrées, et seules celles que vous cochez le sont.',
   'ws.hours.closedNote': 'Aucune date de livraison qui passe par un jour de fermeture n’est promise à un client. {name} explique qu’elle ne peut pas être promise, et n’en invente jamais une plus tardive.',
   'ws.hours.removeAsk': 'Retirer {label} ? Des dates de livraison pourront de nouveau être promises ces jours-là.',
   'ws.flash.rateAgain': 'Devise enregistrée. Le taux n’a pas été fixé : il avait été saisi pour l’ancienne devise. Fixez-le de nouveau.',
@@ -145,4 +154,5 @@ export const SETTINGS_WORKSPACE_FR: Record<Key, string> = {
   'ws.billing.lede': 'Votre formule, et ce qui est facturé.',
   'ws.data.lede': 'Prenez une copie de vos données, traitez les demandes de suppression ou fermez l’espace.',
   'ws.data.historyDelete': 'Supprimé de Nomi en entier, sans être lu. C’est irréversible.',
+  'ws.data.delete': 'Supprimer',
 };
