@@ -22,23 +22,34 @@ export const SECTIONS_CSS = String.raw`
   /* The frame (the owner, 2026-11-26, after Intercom's inbox): the rail's ground is the whole screen, and the work sits
      on it as one window — the sidebar and the page together, inset on every side, rounded, with a thin edge and a soft
      shadow. The rail has no edge of its own: it is the frame. */
-  .owner-shell .layout { min-block-size:100vh; background:linear-gradient(to bottom, var(--color-rail-top), var(--color-rail-bottom)) fixed; }
+  /* ONE ground, painted once (the owner, 2026-11-28: the magenta was not the same at the top and bottom edge): the gradient
+     is on the page's canvas, fixed to the screen, so it also fills what a trackpad pulls past either end. The strips below
+     paint this same gradient and are only cut to the window's corner by a mask. */
+  html:has(> body.owner-shell) { background:linear-gradient(to bottom, var(--color-rail-top), var(--color-rail-bottom)) fixed; }
+  .owner-shell { background:transparent; }
+  .owner-shell .layout { min-block-size:100vh; }
   .owner-shell .layout > nav.side { background:transparent; border-inline-end:0; }
   .owner-shell .layout > .content { margin-block:var(--space-8); margin-inline-end:var(--space-8); min-block-size:calc(100vh - var(--space-16));
-    background:var(--color-paper); border:1px solid var(--color-border); border-start-end-radius:var(--radius-panel); border-end-end-radius:var(--radius-panel); overflow:clip;
-    box-shadow:0 2px 12px var(--color-rail-shadow); }
+    background:var(--color-paper); border:0; border-start-end-radius:var(--radius-panel); border-end-end-radius:var(--radius-panel); overflow:clip;
+    box-shadow:none; }
   /* The window keeps its round corners and its inset at the top and the bottom of the SCREEN while a long page scrolls
-     under them (the owner, 2026-11-26: "the bottom side should also be like that"): two strips of the frame's own
-     colour, fixed over the window's ends, each cut to the window's corner. Nothing in them takes a click. */
-  .owner-shell .layout::before, .owner-shell .layout::after { content:""; position:fixed; z-index:4; inset-inline:72px var(--space-8); block-size:24px; pointer-events:none; }
+     under them: two fixed strips of the frame's own ground, cut to the window's corner. Nothing in them takes a click. */
+  .owner-shell .layout::before, .owner-shell .layout::after { content:""; position:fixed; z-index:4; inset-inline:72px var(--space-8); block-size:24px; pointer-events:none;
+    background:linear-gradient(to bottom, var(--color-rail-top), var(--color-rail-bottom)) fixed; }
   .owner-shell .layout::before { inset-block-start:0;
-    background:radial-gradient(circle at 16px 16px, transparent 16px, var(--color-rail-top) 16.5px) left bottom / 16px 16px no-repeat,
-      radial-gradient(circle at 0 16px, transparent 16px, var(--color-rail-top) 16.5px) right bottom / 16px 16px no-repeat,
-      linear-gradient(var(--color-rail-top), var(--color-rail-top)) 0 0 / 16px 8px repeat-x; }
+    -webkit-mask:radial-gradient(circle at 16px 16px, transparent 15.25px, black 16.25px) left bottom / 16px 16px no-repeat,
+      radial-gradient(circle at 0 16px, transparent 15.25px, black 16.25px) right bottom / 16px 16px no-repeat,
+      linear-gradient(black, black) 0 0 / 16px 8px repeat-x;
+    mask:radial-gradient(circle at 16px 16px, transparent 15.25px, black 16.25px) left bottom / 16px 16px no-repeat,
+      radial-gradient(circle at 0 16px, transparent 15.25px, black 16.25px) right bottom / 16px 16px no-repeat,
+      linear-gradient(black, black) 0 0 / 16px 8px repeat-x; }
   .owner-shell .layout::after { inset-block-end:0;
-    background:radial-gradient(circle at 16px 0, transparent 16px, var(--color-rail-bottom) 16.5px) left top / 16px 16px no-repeat,
-      radial-gradient(circle at 0 0, transparent 16px, var(--color-rail-bottom) 16.5px) right top / 16px 16px no-repeat,
-      linear-gradient(var(--color-rail-bottom), var(--color-rail-bottom)) 0 16px / 16px 8px repeat-x; }
+    -webkit-mask:radial-gradient(circle at 16px 0, transparent 15.25px, black 16.25px) left top / 16px 16px no-repeat,
+      radial-gradient(circle at 0 0, transparent 15.25px, black 16.25px) right top / 16px 16px no-repeat,
+      linear-gradient(black, black) 0 16px / 16px 8px repeat-x;
+    mask:radial-gradient(circle at 16px 0, transparent 15.25px, black 16.25px) left top / 16px 16px no-repeat,
+      radial-gradient(circle at 0 0, transparent 15.25px, black 16.25px) right top / 16px 16px no-repeat,
+      linear-gradient(black, black) 0 16px / 16px 8px repeat-x; }
   /* Alone (no sidebar beside it, or a tablet's width), the page is the whole window: its first corners round too. */
   .owner-shell .layout:not(:has(> .sect)) > .content { border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel); }
   .owner-shell .layout > nav.side :is(a,button).navlink { border-radius:var(--radius-panel); }
@@ -76,10 +87,11 @@ export const SECTIONS_CSS = String.raw`
 .owner-shell .content:has(.sp > .sp-panels.is-one) .sp-head > .sp-new { margin-inline-end:calc(44px + var(--space-8)); }
 @media (min-width:961px) {
   .owner-shell .layout:has(> .sect) { grid-template-columns:72px 264px minmax(0, 1fr); }
+  /* The window's outer edge is its shadow alone (the owner, 2026-11-28: a hairline that stopped where the page scrolled away read as a white line). */
   /* With a sidebar, the window is the two of them: the sidebar its first part, the page the rest, one edge round both. */
   .owner-shell .layout > .sect { inset-block-start:var(--space-8); margin-block:var(--space-8); block-size:calc(100vh - var(--space-16));
-    border:1px solid var(--color-border); border-inline-end-color:var(--color-border); border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel);
-    box-shadow:0 2px 12px var(--color-rail-shadow); }
+    border:0; border-inline-end:1px solid var(--color-border); border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel);
+    box-shadow:none; }
   .owner-shell .layout:has(> .sect) > .content { border-inline-start:0; }
 }
 .sect { display:none; }
