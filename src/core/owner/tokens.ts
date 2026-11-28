@@ -217,6 +217,13 @@ export const DESIGN_TOKENS = {
     logoInstagram3: '#FF0069',
     logoInstagram4: '#D300C5',
     logoInstagram5: '#7638FA',
+    logoMessenger: '#0866FF',
+    // The public site's phone demo (F45, 2026-11-28): a chat drawn the way each channel draws it, so a visitor
+    // recognises WhatsApp and Instagram at a glance. Used by the demo alone.
+    demoWhatsappGround: '#EFEAE2',
+    demoWhatsappMine: '#D9FDD3',
+    demoInstagramMine: '#3797F0',
+    demoInstagramTheirs: '#EFEFEF',
     // Seal artwork and favicon retain their supplied colours.
     coin: '#5A0A2E',
     coinGround: '#F5F1EA',

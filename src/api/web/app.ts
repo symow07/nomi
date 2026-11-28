@@ -120,6 +120,7 @@ import type { InboundLink } from './channels.js';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms, renderCookies, renderRefunds, TERMS_VERSION, type LegalFacts } from './legal.js';
 import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress, type SiteInput } from './site.js';
 import { renderSiteReel, reelReady } from './siteReel.js';
+import { renderSiteHome, siteShotAt } from './siteHome.js';
 import { DEFAULT_PROCESSOR, HOSTING, processorLabel, transcriberProcessor } from '../../core/legal/processors.js';
 import { signupHeldForTransfer } from '../../core/legal/transfer.js';
 import { canonicalCountry } from '../../core/owner/business.js';
@@ -721,6 +722,8 @@ export const PUBLIC_ROUTES: readonly {
 }[] = [
   { method: 'GET', url: '/', why: 'redirects to /login or /app; reveals nothing either way. On a SITE_HOSTS host it is the public site, which reads nothing and names no tenant' },
   { method: 'GET', url: '/site', why: 'Phase 5 — the public site, previewed on any host and marked noindex; reads nothing and names no tenant' },
+  { method: 'GET', url: '/site/new', why: 'F45 — the rebuilt site, for the owner to review before it replaces the current one; noindex, reads nothing, names no tenant' },
+  { method: 'GET', url: '/assets/site/:file', why: 'F45 — the site\'s pictures of the app, taken from the local demo workspace: the same files for everyone, read from the build, never from the database; names no tenant. Only names of the folder\'s one shape are served' },
   { method: 'GET', url: '/site/next', why: 'Phase 3a — the motion-led draft of the site, for the owner to read before it replaces the first screen; noindex, reads nothing, names no tenant' },
   { method: 'GET', url: '/login', why: 'the login form itself' },
   { method: 'POST', url: '/login', why: 'submitting an e-mail and password, or an access code' },
@@ -1832,6 +1835,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Phase 3a — the motion-led draft, for the owner's stop-gate: the same page, its first screen the reel. Noindex.
   app.get('/site/next', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderSiteReel(await siteInput(req, '/site/next', true))));
+  // F45 — the rebuilt site, under review. Noindex; the same words for everyone.
+  app.get('/site/new', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderSiteHome({
+      locale: localeOf(req), path: '/site/new', noindex: true, contact: deps.legalContact ?? null,
+      signIn: (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/login') : null) ?? '/login',
+    })));
+  app.get('/assets/site/:file', async (req, reply) => {
+    const found = siteShotAt((req.params as { file: string }).file);
+    if (!found) return reply.callNotFound();
+    return reply.header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff')
+      .type('image/webp').send(found);
+  });
 
   // G1 — open sign-up asks every new address for a code, so it needs the
   // installation's own sender: without one, open reads as closed. BOT — and a
