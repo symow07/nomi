@@ -117,7 +117,8 @@ ${AT} .find-quiet.find-quiet { min-block-size:0; min-inline-size:0; }
   min-block-size:var(--control-header); margin:0 0 var(--space-24); padding-block-end:var(--space-12); border-block-end:1px solid var(--color-border); }
 .owner-shell .page-head > h1, .owner-shell .il-header > h1 { flex:1 1 auto; margin:0; }
 .owner-shell .page-head > .page-acts, .owner-shell .il-header > :is(.sp-new, .page-acts) { display:flex; flex-wrap:wrap; gap:var(--space-8); margin:0; margin-inline-start:auto; }
-.owner-shell .il-header > .live { flex-basis:100%; }
+.owner-shell .il-header > .live { flex:0 0 100%; max-inline-size:none; order:9; }
+.owner-shell .sp-new .sp-btn { white-space:nowrap; }
 /* What is said about a page under its title is a caption-sized line, not a second paragraph size. */
 .owner-shell main h1.page + :is(p, .lede, .intro) { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin-block-start:calc(-1 * var(--space-8)); }
 .owner-shell main h2 { font-size:var(--font-size-title); font-weight:600; }
