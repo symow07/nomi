@@ -145,4 +145,8 @@ export const INBOX_LIST_CSS = `
   .saved-reply-languages { grid-column:1; max-inline-size:none; }
   .saved-replies-header { align-items:start; }
 }
+/* The Inbox's window fills the screen's height, so the sheet does not stop short of the frame. */
+@media (min-width:721px) { .il-page { min-block-size:calc(100dvh - var(--space-16) - 2px); display:flex; flex-direction:column; } .il-page > .il-workspace { flex:1 1 auto; } }
+/* On a phone the last words may take a second line before they are cut. */
+@media (max-width:720px) { .il-page .si-said { align-items:flex-start; } .il-page .si-last { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; } }
 `;

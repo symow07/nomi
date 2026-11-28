@@ -533,4 +533,9 @@ html .owner-shell { --font-voice:var(--font-family); font-variant-numeric:tabula
   .gs-heading { align-items:flex-start; }
   .gs-heading h2 { flex-basis:100%; }
 }
+/* A row with no product picture gives no column to one: the name stands beside the face, not a thumbnail's width away. */
+@media (max-width:720px) {
+  .sp-row:has(> .sp-thumb-none) { grid-template-columns:36px 0 minmax(0, 1fr) auto 14px; }
+  .sp-row:has(> .sp-thumb-none) > :is(.sp-rname, .sp-chip) { margin-inline-start:calc(-1 * var(--space-8)); }
+}
 `;

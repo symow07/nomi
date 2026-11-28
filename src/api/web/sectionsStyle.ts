@@ -30,7 +30,7 @@ export const SECTIONS_CSS = String.raw`
   .owner-shell .layout { min-block-size:100vh; }
   .owner-shell .layout > nav.side { background:transparent; border-inline-end:0; }
   .owner-shell .layout > .content { margin-block:var(--space-8); margin-inline-end:var(--space-8); min-block-size:calc(100vh - var(--space-16));
-    background:var(--color-paper); border:1px solid var(--color-border); border-start-end-radius:var(--radius-panel); border-end-end-radius:var(--radius-panel); overflow:clip;
+    background:var(--color-paper); border:0; border-start-end-radius:var(--radius-panel); border-end-end-radius:var(--radius-panel); overflow:clip;
     box-shadow:0 2px 12px var(--color-rail-shadow); }
   /* The window keeps its round corners and its inset at the top and the bottom of the SCREEN while a long page scrolls
      under them: two fixed strips of the frame's own ground, cut to the window's corner. Nothing in them takes a click. */
@@ -87,9 +87,10 @@ export const SECTIONS_CSS = String.raw`
 .owner-shell .content:has(.sp > .sp-panels.is-one) .sp-head > .sp-new { margin-inline-end:calc(44px + var(--space-8)); }
 @media (min-width:961px) {
   .owner-shell .layout:has(> .sect) { grid-template-columns:72px 264px minmax(0, 1fr); }
+  /* The window's outer edge is its shadow alone (the owner, 2026-11-28: a hairline that stopped where the page scrolled away read as a white line). */
   /* With a sidebar, the window is the two of them: the sidebar its first part, the page the rest, one edge round both. */
   .owner-shell .layout > .sect { inset-block-start:var(--space-8); margin-block:var(--space-8); block-size:calc(100vh - var(--space-16));
-    border:1px solid var(--color-border); border-inline-end-color:var(--color-border); border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel);
+    border:0; border-inline-end:1px solid var(--color-border); border-start-start-radius:var(--radius-panel); border-end-start-radius:var(--radius-panel);
     box-shadow:0 2px 12px var(--color-rail-shadow); }
   .owner-shell .layout:has(> .sect) > .content { border-inline-start:0; }
 }
